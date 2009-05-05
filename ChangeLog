@@ -1,5 +1,8 @@
 2009-05-05  Shiro Kawai  <shiro@acm.org>
 
+	* build-site: Check if chaton.js needs to be updated, and if not,
+	  do not replace chaton.js (and the viewer's version).
+
 	* chaton-browser (make-page): Changed title display.
 
 	* chaton-archiver, chaton-viewer, chaton-browser, chaton-poster:

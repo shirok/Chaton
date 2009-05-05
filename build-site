@@ -24,52 +24,49 @@
          [cgi-script #`"chaton-poster-,|safe-room-name|"]
          [comet-script #`"chaton-viewer-,|safe-room-name|"]
          [archiver-script #`"chaton-archiver-,|safe-room-name|"]
-         [timestamp (number->string (sys-time) 36)]
-         [chaton-js #`"chaton.,|timestamp|.js"])
-    ;; ensure target directories
-    (for-each make-directory* (list bindir
-                                    (build-path bindir "data")
-                                    (build-path bindir "logs")
-                                    (build-path docdir "var")))
-    ;; ensure initial files existence
-    (create-if-does-not-exist (build-path bindir "data/current.dat") "")
-    (create-if-does-not-exist (build-path docdir "var/seq") "0")
-    ;; clean old timestamped files
-    (remove-files (directory-list docdir
-                                  :add-path? #t :filter #/^chaton\.\w+\.js$/))
-    ;; copy files
-    (let1 nconf (list* `(comet-script . ,comet-script)
-                       `(cgi-script . ,cgi-script)
-                       `(chaton-js . ,chaton-js)
-                       `(version . ,timestamp)
-                       config)
-      (sed "chaton-viewer" (build-path bindir comet-script) nconf #o555)
-      (sed "chaton-archiver" (build-path bindir archiver-script) nconf #o555)
-      (sed "chaton.scm"    (build-path datadir "chaton.scm") nconf #o444)
-      (sed "chaton-poster" (build-path docdir cgi-script) nconf #o555)
-      (sed "chaton-browser"(build-path docdir "a") nconf #o555)
-      (sed "chaton.html"   (build-path docdir "chaton.html") nconf #o444)
-      (sed "chaton.js"     (build-path docdir chaton-js) nconf #o444)
-      (sed "htaccess"      (build-path docdir ".htaccess") nconf #o444)
-      (sed "chaton.css"    (build-path docdir "chaton.css") nconf #o444))))
+         [xconfig `((comet-script . ,comet-script) (cgi-script . ,cgi-script)
+                    ,@config)])
+    (ensure-files-and-directories bindir docdir datadir)
+    (receive (nconf chaton-js-update?)
+        (check-if-chaton-js-need-to-change docdir xconfig)
+      ;; copy files
+      (sed "chaton-viewer" (build-path bindir comet-script) nconf)
+      (sed "chaton-archiver" (build-path bindir archiver-script) nconf)
+      (sed "chaton.scm"    (build-path datadir "chaton.scm") nconf)
+      (sed "chaton-poster" (build-path docdir cgi-script) nconf)
+      (sed "chaton-browser"(build-path docdir "a") nconf)
+      (sed "chaton.html"   (build-path docdir "chaton.html") nconf)
+      (sed "htaccess"      (build-path docdir ".htaccess") nconf)
+      (sed "chaton.css"    (build-path docdir "chaton.css") nconf)
+      (cond
+       [chaton-js-update?
+        (remove-old-chaton-js docdir)
+        (sed "chaton.js" (build-path docdir (assoc-ref nconf 'chaton-js)) nconf)]
+       [else (print "chaton.js unchanged.")])
+      )))
 
-(define (sed inf outf config mode)
-  (define (xlate line)
+(define (sed inf outf config :optional (verbose? #t))
+  (define executable? #f)
+  
+  (define (xlate-1 line)
     (apply regexp-replace-all* line
-           #/#!\/usr\/bin\/env gosh/ #`"#!,(assoc-ref config 'gosh)"
            (concatenate (map (lambda (cv) `(,#`"@@,(car cv)@@" ,(cdr cv)))
                              config))))
-  (print "installing " outf)
-  (file-filter (lambda (in out)
-                 (port-for-each (lambda (line) (format out "~a\n" (xlate line)))
-                                (cut read-line in)))
-               :input inf :output outf :temporary-file #`",|outf|.t")
-  (sys-chmod outf mode))
+  (define (xlate in out)
+    (let1 first-line (read-line in)
+      (unless (eof-object? first-line)
+        (rxmatch-case first-line
+          [#/^#!\/usr\/bin\/env\s+gosh/ ()
+           (set! executable? #t)
+           (display (assoc-ref config 'gosh) out)]
+          [else (display first-line out)])
+        (newline out)
+        (port-for-each (lambda (line) (format out "~a\n" (xlate-1 line)))
+                       (cut read-line in)))))
 
-(define (create-if-does-not-exist file content)
-  (with-output-to-file file
-    (lambda () (display content))
-    :if-exists #f))
+  (when verbose? (print "installing " outf))
+  (file-filter xlate :input inf :output outf :temporary-file #`",|outf|.t")
+  (sys-chmod outf (if executable? #o555 #o444)))
 
 ;; This returns ((<var> . <val>) ...) of config file, in the REVERSE order
 ;; of apperance.  The order is important to allow overriding values by
@@ -90,3 +87,48 @@
                    seed
                    read))))
   (do-load file '()))
+
+;; Ensure directories and files that should exist
+(define (ensure-files-and-directories bindir docdir datadir)
+  (for-each make-directory* (list bindir
+                                  (build-path datadir "data")
+                                  (build-path datadir "logs")
+                                  (build-path docdir "var")))
+  (create-if-does-not-exist (build-path datadir "data/current.dat") "")
+  (create-if-does-not-exist (build-path docdir "var/seq") "0"))
+
+(define (create-if-does-not-exist file content)
+  (with-output-to-file file
+    (lambda () (display content))
+    :if-exists #f))
+
+;; Translate chaton.js to see if we need to update it.
+;; Returns an updated config substitutions and a flag to indicate
+;; whether we need to update chaton.js.
+(define (check-if-chaton-js-need-to-change docdir config)
+  (let* ([chaton-js-latest (find-latest-chaton-js docdir)]
+         [timestamp (number->string (sys-time) 36)]
+         [chaton-js-new #`"chaton.,|timestamp|.js"])
+    (if (not chaton-js-latest)
+      (values  `((chaton-js . ,chaton-js-new) (version . ,timestamp) ,@config)
+               #t)
+      (unwind-protect
+          (let1 timestamp-old
+              (rxmatch->string #/chaton\.(\w+)\.js$/ chaton-js-latest 1)
+            (sed "chaton.js" "chaton.js.tmp"
+                 `((version . ,timestamp-old) ,@config) #f)
+            (if (file-equal? "chaton.js.tmp" chaton-js-latest)
+              (values `((chaton-js . ,chaton-js-latest)
+                        (version . ,timestamp-old) ,@config)
+                      #f)
+              (values `((chaton-js . ,chaton-js-new)
+                        (version . ,timestamp) ,@config)
+                      #t)))
+        (sys-unlink "chaton.js.tmp")))))
+  
+(define (find-latest-chaton-js dir)
+  (let1 fs (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)
+    (if (null? fs) #f (car (reverse fs)))))
+
+(define (remove-old-chaton-js dir)
+  (remove-files (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)))
