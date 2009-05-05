@@ -7,7 +7,7 @@ rooms:
 
 install: all
 	for r in `cat rooms`; do \
-	  $(GOSH) ./build-site $$r \
+	  $(GOSH) ./build-site $$r; \
 	done
 
 check:
