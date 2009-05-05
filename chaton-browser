@@ -40,17 +40,17 @@
      `(,(cgi-header :content-type "text/html; charset=utf-8")
        ,(html:html
          (html:head
-          (html:title :id "room-title"
-                      (html:img :class "room-icon" :src "@@icon-url@@"
-                                :align "absmiddle" :alt "")
-                      (html-escape-string title))
+          (html:title (html-escape-string title))
           (html:link :href "@@httpd-url@@@@url-path@@chaton.css"
                      :rel "Stylesheet" :type "text/css")
           (html:script :src "@@prototype-url@@" :type "text/javascript")
           (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
                        :type "text/javascript"))
          (html:body
-          (html:h1 :id "room-title" title)
+          (html:h1 :id "room-title"
+                   (html:img :class "room-icon" :src "@@icon-url@@"
+                             :align "absmiddle" :alt "")
+                   (html-escape-string title))
           (html:div
            :id "left-pane"
            (navigate-bar y m d)

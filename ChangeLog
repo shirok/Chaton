@@ -1,5 +1,7 @@
 2009-05-05  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-browser (make-page): Changed title display.
+
 	* chaton-archiver, chaton-viewer, chaton-browser, chaton-poster:
 	  Changed current.dat and archive directory under $DATADIR/data/,
 	  and log directory under $DATADIR/logs/, respectievly.  Since
