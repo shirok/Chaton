@@ -1,5 +1,6 @@
 body { margin: 0; padding: 0; }
-#room-title { margin: 10pt; font-size: 150%; font-family: Sans, Ariel, Helvetica; }
+#room-title { margin: 10pt 10pt -20pt 10pt; 
+              font-size: 150%; font-family: Sans, Ariel, Helvetica; }
 #left-pane  { margin: 10pt; padding: 5pt; }
 #left-pane #navigation { width:75%; text-align: right; }
 #view-pane { padding: 3px; border-width: 0pt; }
