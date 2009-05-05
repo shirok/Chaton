@@ -59,7 +59,7 @@
           [#/^#!\/usr\/bin\/env\s+gosh/ ()
            (set! executable? #t)
            (display #`"#!,(assoc-ref config 'gosh)" out)]
-          [else (display first-line out)])
+          [else (display (xlate-1 first-line) out)])
         (newline out)
         (port-for-each (lambda (line) (format out "~a\n" (xlate-1 line)))
                        (cut read-line in)))))
