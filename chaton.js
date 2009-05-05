@@ -52,7 +52,7 @@ function setNickname() {
         var sc = cookies[i].strip();
         if (sc.startsWith('chaton-nickname=')) {
             var nick = sc.substring('chaton-nickname='.length, sc.length);
-            $('post-nick').value = nick;
+            $('post-nick').value = unescape(nick);
             $('post-remember').checked = true;
             break;
         }
