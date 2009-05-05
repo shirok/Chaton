@@ -68,22 +68,24 @@ Directory structure:
                  although not necessarily.
 
   $DATADIR       A directory where the chat messages and other stuff
-                 are stored.  Must be writable by both the server-side
-                 programs and CGI scripts.  Recommended not to be
-                 under the directory visible via httpd.
+                 are stored.  Recommended not to be under the directory
+                 visible via httpd.
                  Each chatroom must have distinct $DATADIR.
 
-    $DATADIR/current.dat   Current message data.  Typically it contains
-                 around one-day worth of postings.   The chaton-archiver
-                 script removes old messages from this and stores them
-                 to archived data.
+    $DATADIR/data   Subdirectory where message data goes into.  CGI
+                 scripts needs to write into this directory.
 
-    $DATADIR/YYYY/MM/DD.dat  Archived data.   Created by chaton-archiver
-                 script.   Chaton-archiver also sets the today's data file
-                 as a symlink to the current.dat file.
-                 
+    $DATADIR/data/current.dat   Current message data.  Typically it
+                 contains around one-day worth of postings.   The
+                 chaton-archiver script removes old messages from this
+                 and stores them to archived data.
 
-    $DATADIR/comet.log  Access log file from the Comet server
+    $DATADIR/data/YYYY/MM/DD.dat  Archived data.   Created by
+                 chaton-archiver script.   Chaton-archiver also sets
+                 the today's data file as a symlink to the current.dat
+                 file.
+
+    $DATADIR/logs/comet.log  Access log file from the Comet server
                  (chaton-viewer-*).
 
 
