@@ -1,0 +1,6 @@
+2009-05-05  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.js: Sets nickname cookie even post-text is empty; allowing
+	  the client to change nickname without actually posting a message.
+
+

@@ -9,8 +9,8 @@
 // Post interface ----------------------------------
 
 function post() {
-  if ($F('post-nick') == '' || $F('post-text') == '') return;
   setNickCookie($F('post-remember'));
+  if ($F('post-nick') == '' || $F('post-text') == '') return;
   disablePost();
   new Ajax.Request("@@httpd-url@@@@url-path@@@@cgi-script@@",
     {
