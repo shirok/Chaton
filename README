@@ -17,19 +17,20 @@ Prerequisites:
   your home directory.
 
 
-Programs and directories:
+Files:
 
-  Chaton uses the following programs:
+  The following files are scripts that cooperates to make Chaton
+  work:
 
     chaton-viewer   This is a Comet server responsible to
           distribute room contents.   It must run as a daemon.
           Currently you have to run one daemon process per
           one chatroom.  The actual installed script is named
-          'chaton-viewer-ROOMNAME'.
+          'chaton-viewer-$ROOM', where $ROOM is the room name.
 
     chaton-poster   This is a CGI script that handles message
           posting.  The actual installed script is named
-          'chaton-poster-ROOMNAME'.
+          'chaton-poster-$ROOM'.
 
     chaton-browser  This is a CGI script that handles browsing
           message archives.  When installed, this script becomes
@@ -38,11 +39,113 @@ Programs and directories:
     chaton-archiver  This is a script file that archives message
           logs.  This script must be run daily.
 
+ The following files are to consist the client-side contents:
+
+    chaton.html   This is the outer HTML that defines the basic
+          parts of the chat room page.   It contains an iframe,
+          whose content is provided from the chaton-viewer server.
+
+    chaton.js   The javascript that implements client-side operations.
+          The same file is read from both the outer 'chaton.html' file
+          and from the content inside the iframe.
+          Upon installation, this file is renamed to 'chaton.XXXXXX.js'
+          where XXXXXX is a unique string, to avoid caching by
+          browsers.
+
+    chaton.css   The stylesheet.  Used by both the outer 'chaton.html'
+          and the content inside the iframe.
+
+  Additionally, 'chaton.scm' implements common funcionalities used
+  among server-side scripts, and 'htaccess' is the skeleton of
+  '.htaccess' file for each room.
 
 
+Directory structure:
 
-          
+  $BINDIR        A directory where server-side programs (chaton-viewer-*
+                 and chaton-archiver-*) will go.  You may want this
+                 directory to be in your PATH for the convenience,
+                 although not necessarily.
+
+  $DATADIR       A directory where the chat messages and other stuff
+                 are stored.  Must be writable by both the server-side
+                 programs and CGI scripts.  Recommended not to be
+                 under the directory visible via httpd.
+                 Each chatroom must have distinct $DATADIR.
+
+    $DATADIR/current.dat   Current message data.  Typically it contains
+                 around one-day worth of postings.   The chaton-archiver
+                 script removes old messages from this and stores them
+                 to archived data.
+
+    $DATADIR/YYYY/MM/DD.dat  Archived data.   Created by chaton-archiver
+                 script.   Chaton-archiver also sets the today's data file
+                 as a symlink to the current.dat file.
+                 
+
+    $DATADIR/comet.log  Access log file from the Comet server
+                 (chaton-viewer-*).
 
 
+  $HTDOCSDIR     A directory where the content accessed by browsers
+                 will go.   Each chatroom must have distinct $HTDOCSDIR.
+                 The httpd should honor .htaccess in this directory.
 
+    $HTDOCSDIR/.htaccess     Some DirectoryIndex and SetHandler directives.
+
+    $HTDOCSDIR/chaton.html   The main HTML.  We use DirectoryIndex so
+                 that this file is retrieved when the client access
+                 this directory.
+
+    $HTDOCSDIR/chaton.css, $HTDOCSDIR/chaton.XXXXXX.js
+                 CSS and javascript files.
+
+    $HTDOCSDIR/chaton-poster-$ROOM   A CGI script to post the message.
+
+    $HTDOCSDIR/a   A CGI script to browse the archived messages.  From
+                 the web browsers, archived messages are accessed
+                 as 'http://yourdomain.example.com/.../$ROOM/a/YYYY/MM/DD'
+
+    $HTDOCSDIR/var/seq   This is a text file containing the message count.
+                 The client programs can poll this file to monitor whether
+                 new message are added or not.  This file must be writable
+                 by CGI scripts.
+
+
+Build a chat room:
+
+  To build a chat room, first you prepare configuration file.
+  Copy 'sample.conf' and follow the directions.
+
+  The 'sample.conf' file includes two auxiliary files, 'conf/site.conf'
+  and 'conf/appearance.conf'.   You MUST edit 'conf/site.conf' to reflect
+  your site settings; the default values are useless to you.  On the
+  other hand, you can leave 'conf/appearance.conf' as is if you don't
+  need to change it.
+
+  Other than those included .conf files, each chat room MUST have
+  distinct copy of configuration file.  Especially, make sure
+  that the room name, comet port number, url path, htdocs dir and
+  data dir are all unique for each chat room.
+
+  Once you prepare conf file, run build-site script:
+
+    gosh ./build-site yourroom.conf
+
+  This copies necessary files, with modifying them according to
+  the configuration settings.
+
+  For your convenience, you can list multiple conf files in the
+  file 'rooms', one per line.  Then simply the following command
+  runs build-site for every room you have.
+
+    make install
+
+
+Run a chat room:
+
+  You have to run chaton-viewer-$ROOM as a background process.
+
+  You also have to set up chaton-archiver-$ROOM to be executed
+  once a day, probably using cron.
 
