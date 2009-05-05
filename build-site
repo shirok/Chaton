@@ -118,7 +118,7 @@
             (sed "chaton.js" "chaton.js.tmp"
                  `((version . ,timestamp-old) ,@config) #f)
             (if (file-equal? "chaton.js.tmp" chaton-js-latest)
-              (values `((chaton-js . ,chaton-js-latest)
+              (values `((chaton-js . ,(sys-basename chaton-js-latest))
                         (version . ,timestamp-old) ,@config)
                       #f)
               (values `((chaton-js . ,chaton-js-new)
