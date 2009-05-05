@@ -1,0 +1,44 @@
+<html>
+<head>
+<title>Chaton @@room-name@@</title>
+<link href="@@httpd-url@@@@url-path@@chaton.css" rel="Stylesheet" type="text/css">
+<script src="@@prototype-url@@" type="text/javascript"></script>
+<script src="@@httpd-url@@@@url-path@@@@chaton-js@@" type="text/javascript"></script>
+</head>
+<body id="the-body" onload="initMainBody();">
+<h1 id="room-title">
+  <img class="room-icon" src="@@icon-url@@" align="absmiddle" alt="" />
+  Chaton @@room-name@@
+</h1>
+
+<div id="left-pane">
+<div id="navigation">
+  <a href="a/today">Read Archive</a>
+</div>
+<iframe src="@@httpd-url@@:@@comet-port@@/" id="view-frame" width="75%" height="75%">
+</iframe>
+
+<form onsubmit="post(); return false;" id="post-form">
+  <table>
+    <tr>
+      <td>Nickname:</td>
+      <td>
+        <input type="text" name="nick" id="post-nick">
+        <input type="checkbox" name="remember" id="post-remember">
+        <label for="remember">Remember me</label>
+      </td>
+    </tr>
+    <tr>
+      <td>Text:</td>
+      <td>
+        <textarea name="text" id="post-text" rows="3" cols="60"></textarea>
+      </td>
+      <td valign="bottom">
+        <input type="submit" name="submit" id="post-submit" value="chat">
+      </td>
+    </tr>
+  </table>
+</form>
+</div>
+</body>
+</html>

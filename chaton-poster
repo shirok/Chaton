@@ -1,0 +1,66 @@
+#!/usr/bin/env gosh
+(use www.cgi)
+(use gauche.fcntl)
+(use srfi-13)
+(use file.util)
+(use file.filter)
+(use util.list)
+(use text.html-lite)
+(use text.tree)
+
+(define *limit* 2048)
+(define *datadir* (or (cgi-get-metavariable "CHATON_DATADIR")
+                      "@@server-data-dir@@"))
+(define *curfile*  (build-path *datadir* "current.dat"))
+
+(define *docdir*  (or (cgi-get-metavariable "CHATON_DOCDIR")
+                      "@@server-htdocs-dir@@"))
+(define *seqfile*  (build-path *docdir* "var/seq"))
+
+(define (main args)
+  (cgi-main (lambda (params)
+              (let ([nick (cgi-get-parameter "nick" params :default #f)]
+                    [text (cgi-get-parameter "text" params :default #f)])
+                (make-directory* *datadir*)
+                (call-with-output-file *curfile*
+                  (cut update <> (string-trim-both nick) (string-trim-both text))
+                  :if-exists :append)
+                (emit-reply))))
+  0)
+
+(define (emit-reply)                    ;dummy
+  (write-tree `(,(cgi-header) ,(html:html (html:head) (html:body)))))
+
+(define (update out nick text)
+  (unless (or (string-null? nick) (string-null? text))
+    (unwind-protect
+        (begin (sys-fcntl out F_SETLKW (make <sys-flock> :type F_WRLCK))
+               (append-entry out nick text)
+               (increment-sequence))
+      (sys-fcntl out F_SETLK (make <sys-flock> :type F_UNLCK)))))
+
+(define (append-entry out nick text)
+  (port-seek out 0 SEEK_END)
+  (write (make-entry nick text) out)
+  (newline out))
+
+(define (make-entry nick text)
+  (let1 s (string-incomplete->complete text #\?)
+    (receive (sec usec) (sys-gettimeofday)
+      `(,nick (,sec ,usec)
+              ,(if (> (string-length s) *limit*) (string-take s *limit*) s)))))
+
+;; seqfile is only touched while current.txt is locked, so we don't
+;; bother to lock it.
+(define (increment-sequence)
+  (let ([cnt (if (file-exists? *seqfile*)
+               (x->integer (file->string *seqfile*))
+               0)]
+        [tmpfile #`",|*seqfile*|.tmp"])
+    (make-directory* (sys-dirname *seqfile*))
+    (with-output-to-file tmpfile (cut write (+ cnt 1)))
+    (sys-rename tmpfile *seqfile*)))
+        
+;; Local variables:
+;; mode: scheme
+;; end:

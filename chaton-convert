@@ -1,0 +1,59 @@
+#!/home/shiro/bin/gosh
+
+(use srfi-1)
+(use srfi-13)
+(use gauche.sequence)
+(use sxml.ssax)
+(use util.match)
+
+(define (->sxml file)
+  (call-with-output-file #`",|file|.tmp"
+    (lambda (p)
+      (display "<all>" p)
+      (call-with-input-file file (cut copy-port <> p))
+      (display "</all>" p)))
+  (unwind-protect 
+      (cdadr (call-with-input-file #`",|file|.tmp" (cut ssax:xml->sxml <> '())))
+    (sys-unlink #`",|file|.tmp")))
+
+(define (fold-entries xs)
+  (values-ref
+   (fold2 (lambda (x chatter r)
+            (match x
+              [('div ('@ ('id id) . _) ('span . elts))
+               (values chatter
+                       `((,chatter ,(parse-id id) ,(clean-elts elts)) ,@r))]
+              [('pre ('@ ('id id) . _) . elts)
+               (values chatter
+                       `((,chatter ,(parse-id id) ,(clean-elts elts)) ,@r))]
+              [('div ('@ ('class _)) _ ('span ('@ ('class _)) chatter2))
+               (values chatter2 r)]
+              [_ (values chatter r)]))
+          #f '() xs)
+   1))
+
+(define (parse-id tag)
+  (rxmatch-let (#/entry-(\w+)-(\w+)/ tag) (_ x y)
+    (list (string->number x 16) (string->number y 16))))
+
+(define (clean-elts elts)
+  (string-concatenate-reverse
+   (fold (lambda (elt r)
+           (match elt
+             [(? string?) (cons elt r)]
+             [('a ('@ . _) url) (cons url r)]
+             [_ (error "huh? " elt)]))
+         '() elts)))
+
+(define (main args)
+  (match (cdr args)
+    [(in out) (with-output-to-file out
+                (lambda ()
+                  (print ";; -*- coding: utf-8 -*-")
+                  (for-each (lambda (e) (write e) (newline))
+                            (reverse (fold-entries (->sxml in))))))]
+    [_ (exit 1 "Usage: chaton-convert <in> <out>")]))
+
+;; Local variables:
+;; mode: scheme
+;; end:

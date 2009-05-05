@@ -1,0 +1,109 @@
+#!/usr/bin/env gosh
+;; This script should be run prediodically to truncate and
+;; save the logs.
+
+(use file.util)
+(use file.filter)
+(use util.match)
+(use gauche.fcntl)
+(use gauche.parameter)
+(use gauche.parseopt)
+(use srfi-19)
+
+(define *datadir* "@@server-data-dir@@")
+
+(define verbose (make-parameter #f))
+
+(define (report fmt . args)
+  (when (verbose) (apply format #t fmt args)))
+
+(define (split-data in out start end pred)
+  (file-filter (lambda (in out)
+                 (port-for-each (cut filter-entry <> out start end pred)
+                                (cut read-line in)))
+               :input in :output out :temporary-file #`",|out|.t"))
+
+(define (filter-entry line out start end pred)
+  (match (safe-read line)
+    [(nick (sec usec) text)
+     (when (pred (<= start sec end)) (display line out) (newline out))]
+    [_ #f]))
+
+(define (split-data-by-day in out date pred)
+  (let1 start (time-second (date->time-utc date))
+    (split-data in out start (+ start 86399) pred)))
+
+(define (daily-log-path date)
+  (build-path *datadir* (format "~4,'0d/~2,'0d/~2,'0d.dat"
+                                (date-year date)
+                                (date-month date)
+                                (date-day date))))
+
+(define (safe-read line)
+  (guard (e [(<read-error> e) ""]) (read-from-string line)))
+
+;; Chore for the day
+;; (1) move the DATE's log into *datadir*/YYYY/MM/DD.dat
+;; (2) create a link of *datadir*/YYYY/MM/NEXTDAY.dat -> *datadir*/current.dat
+;; (3) truncate *datadir*/current.dat
+(define (chore-for-the-day date)
+  (let* ([current  (build-path *datadir* "current.dat")]
+         [backup   (build-path *datadir* "current.dat.bak")]
+         [today    (daily-log-path date)]
+         [next     (date+ date 1)]
+         [tomorrow (daily-log-path next)])
+    (call-with-output-file current
+      (lambda (out)
+        (unwind-protect
+            (begin
+              (sys-fcntl out F_SETLKW (make <sys-flock> :type F_WRLCK))
+              (copy-file current backup :if-exists :supersede) ; backup
+              (make-directory* (sys-dirname today))
+              (make-directory* (sys-dirname tomorrow))
+              (cond [(and (file-exists? today)
+                          (not (file-is-symlink? today)))
+                     (report "archive file ~a exists.  skipping.\n" today)]
+                    [else
+                     (report "generating ~a\n" today)
+                     (split-data-by-day current today date identity)
+                     (report "truncating ~a\n" current)
+                     (split-data-by-day current current date not)])
+              (cond [(file-exists? tomorrow)
+                     (report "link ~a exists.  skipping.\n" tomorrow)]
+                    [else
+                     (report "creating link ~a\n" tomorrow)
+                     (sys-symlink current tomorrow)]))
+          (sys-fcntl out F_SETLK (make <sys-flock> :type F_UNLCK))))
+      :if-exists :append :if-does-not-exist #f)))
+
+(define (beginning date)
+  (make-date 0 0 0 0 (date-day date) (date-month date) (date-year date)
+             (date-zone-offset date)))
+
+(define (date+ date days)
+  (julian-day->date (+ (date->julian-day date) days)))
+
+(define (parse-date str)
+  (rxmatch-case str
+    [#/^(\d\d\d\d)\/(\d{1,2})\/(\d{1,2})$/ (_ y m d)
+     (let ([yy (x->integer y)]
+           [mm (x->integer m)]
+           [dd (x->integer d)])
+       (unless (and (<= 2000 yy)
+                    (<= 1 mm 12)
+                    (<= 1 dd 31))
+         (exit 1 "bad date: ~a" str))
+       (make-date 0 0 0 0 dd mm yy (date-zone-offset (current-date))))]
+    [else (exit 1 "bad date: ~a" str)]))
+
+(define (main args)
+  (let-args (cdr args) ([q "q|quiet" #f] . args)
+    (parameterize ([verbose (not q)])
+      (match args
+        [()        (chore-for-the-day (date+ (beginning (current-date)) -1))]
+        [(datestr) (chore-for-the-day (parse-date datestr))]))
+    0))
+
+;; Local variables:
+;; mode: scheme
+;; end:

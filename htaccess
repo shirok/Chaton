@@ -1,0 +1,13 @@
+<Files "@@cgi-script@@">
+  SetHandler cgi-script
+</Files>
+
+<Files "a">
+  SetHandler cgi-script
+</Files>
+
+<Files "var/seq">
+  ForceType text/plain
+</Files>
+
+DirectoryIndex chaton.html

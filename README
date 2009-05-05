@@ -1,0 +1,48 @@
+Chaton (pronounced like [sha-ton]) is a comet-based webchat server.
+It is a collection of CGI scripts, daemon programs and other scripts.
+
+Prerequisites:
+
+- Make sure you can run a daemon process on your server.
+  It might be difficult if you're using shared hosting
+  service.
+
+- It is also desirable that you can make your own crontab.
+
+- The server should also run httpd that is capable to run
+  CGI.  The server should be configured so that you can
+  do SetHandler in .htaccess file.
+
+- Gauche 0.8.14 or later.  You can install it under
+  your home directory.
+
+
+Programs and directories:
+
+  Chaton uses the following programs:
+
+    chaton-viewer   This is a Comet server responsible to
+          distribute room contents.   It must run as a daemon.
+          Currently you have to run one daemon process per
+          one chatroom.  The actual installed script is named
+          'chaton-viewer-ROOMNAME'.
+
+    chaton-poster   This is a CGI script that handles message
+          posting.  The actual installed script is named
+          'chaton-poster-ROOMNAME'.
+
+    chaton-browser  This is a CGI script that handles browsing
+          message archives.  When installed, this script becomes
+          'a', for the sake of shorter permalinks.
+
+    chaton-archiver  This is a script file that archives message
+          logs.  This script must be run daily.
+
+
+
+
+          
+
+
+
+

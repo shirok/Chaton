@@ -1,0 +1,81 @@
+#!/usr/bin/env gosh
+;; Archive browser CGI
+
+(add-load-path "@@server-data-dir@@")
+
+(use www.cgi)
+(use text.html-lite)
+(use text.tree)
+(use file.util)
+(use chaton)
+(use srfi-19)
+
+(define *room* "@@room-name@@")
+(define *datadir* "@@server-data-dir@@")
+(define *room-url* "@@httpd-url@@@@url-path@@")
+
+(define (main args)
+  (rxmatch-case (cgi-get-metavariable "PATH_INFO")
+    [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
+     (emit-archfile y m d)]
+    [#/^\/today/ ()
+     (let* ([today (current-date)]
+            [y (format "~4,'0d" (date-year today))]
+            [m (format "~2,'0d" (date-month today))]
+            [d (format "~2,'0d" (date-day today))])
+       (emit-archfile y m d))]
+    [else (emit-archfile "0" "0" "0")])
+  0)
+
+(define (emit-archfile y m d)
+  (let1 archfile (build-path *datadir* (format "~a/~a/~a.dat" y m d))
+    (make-page (if (file-exists? archfile)
+                 (format-content archfile)
+                 "")
+               y m d)))
+
+(define (make-page content y m d)
+  (let1 title (format "Chaton ~a > Archives > ~a/~a/~a" *room* y m d)
+    (write-tree
+     `(,(cgi-header :content-type "text/html; charset=utf-8")
+       ,(html:html
+         (html:head
+          (html:title title)
+          (html:link :href "@@httpd-url@@@@url-path@@chaton.css"
+                     :rel "Stylesheet" :type "text/css")
+          (html:script :src "@@prototype-url@@" :type "text/javascript")
+          (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+                       :type "text/javascript"))
+         (html:body
+          (html:h1 :id "room-title" title)
+          (html:div
+           :id "left-pane"
+           (navigate-bar y m d)
+           (html:div :id "archive-view" content)
+           (navigate-bar y m d))))))))
+
+(define (format-content archfile)
+  (chaton-render-from-file archfile 0 '(#f . #f)))
+
+(define (navigate-bar y m d)
+  (html:div
+   :class "archive-navigate"
+   (html:table
+    (html:tr
+     (html:td :class "to-prev" (day-link y m d -1 "<< ~a"))
+     (html:td :class "to-room" (html:a :href *room-url* "Back to the chat room"))
+     (html:td :class "to-next" (day-link y m d +1 "~a >>"))))))
+
+(define (day-link y m d inc fmtstr)
+  (let* ([this-day (make-date 0 0 0 0 (x->integer d) (x->integer m)
+                              (x->integer y) (date-zone-offset (current-date)))]
+         [the-day  (julian-day->date (+ (date->julian-day this-day) inc))]
+         [y (date-year the-day)]
+         [m (date-month the-day)]
+         [d (date-day the-day)])
+    (html:a :href (format "~aa/~4,'0d/~2,'0d/~2,'0d" *room-url* y m d)
+            (format fmtstr (format "~4,'0d/~2,'0d/~2,'0d" y m d)))))
+
+;; Local variables:
+;; mode: scheme
+;; end:

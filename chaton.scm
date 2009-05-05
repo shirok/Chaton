@@ -1,0 +1,153 @@
+;;;
+;;; Some common routines for chaton scripts
+;;;
+(define-module chaton
+  (use srfi-1)
+  (use srfi-13)
+  (use text.html-lite)
+  (use text.tree)
+  (use file.util)
+  (use util.match)
+  (use gauche.fcntl)
+  (use gauche.sequence)
+  (export chaton-render
+          chaton-render-from-file))
+(select-module chaton)
+
+(define *archivepath* "@@httpd-url@@@@url-path@@a/")
+
+;;;
+;;;  Entries
+;;;
+
+;; es : ((<nick> (<sec> <nsec>) <text>) ...)
+;; last-state : (<chatter> . <timestamp>)
+;; returns <text-tree> and new-state
+(define (chaton-render es last-state)
+  (map-accum chaton-render-1 last-state es))
+
+;; render from file, starting from POS.
+;; returns <text-tree>, new-state, and new POS.
+(define (chaton-render-from-file file pos last-state)
+  (receive (lines pos) (read-diff file pos)
+    (receive (tree new-state)
+        (chaton-render (safe-lines->sexps lines) last-state)
+      (values tree new-state pos))))
+
+;;;
+;;;  Rendering
+;;;
+
+(define (chaton-render-1 entry last-state)
+  (match-let1 (nick (sec usec) text . _) entry
+    (let* ([anchor-string (format "entry-~x-~2,'0x" sec usec)]
+           [permalink (make-permalink sec anchor-string)])
+      (values `(,(if (and (equal? nick (car last-state))
+                          (< (abs (- (cdr last-state) sec)) 240))
+                   '()
+                   (html:div
+                    :class "entry-header"
+                    (html:span :class "timestamp"
+                               (sys-strftime "%Y/%m/%d %T %Z" (sys-localtime sec)))
+                    (html:span :class "chatter" nick)))
+                ,(html:a :class "permalink-anchor"
+                         :id #`"anchor-,anchor-string"
+                         :href permalink :name permalink :target "_parent"
+                         "#")
+                ,(if (#/\n/ text)
+                   (html:pre :class "entry-multi" :id anchor-string
+                             (safe-text text))
+                   (html:div :class "entry-single" :id anchor-string
+                             (html:span (safe-text text)))))
+              (cons nick sec)))))
+
+(define (make-permalink sec anchor)
+  (build-path *archivepath*
+              (format "~a#~a"
+                      (sys-strftime "%Y/%m/%d" (sys-localtime sec))
+                      anchor)))
+
+(define *url-rx*
+  #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s]*(\?[^#\s]*)?(#\S*)?)/)
+
+(define (safe-text text)
+  (let loop ([s text] 
+             [r '()])
+    (cond [(string-null? s) (reverse r)]
+          [(*url-rx* s)
+           => (lambda (m)
+                (loop (m 'after)
+                      (list* (render-url (m 0))
+                             (html-escape-string (m 'before))
+                             r)))]
+          [else (reverse (cons (html-escape-string s) r))])))
+
+(define (render-url url)
+  (rxmatch-case url
+    [#/\.(?:jpg|gif|png)/ () (render-url-image url)]
+    [#/^http:\/\/(\w{2,3}\.youtube\.com)\/watch\?v=(\w{1,12})/ (_ host vid)
+     (render-url-youtube host vid)]
+    [#/^http:\/\/www\.nicovideo\.jp\/watch\/(\w{1,13})/ (_ vid)
+     (render-url-nicovideo vid)]
+    [else (render-url-default url)]))
+
+(define (render-url-default url)
+  (html:a :href url :rel "nofollow" :class "link-default"
+          :onclick "window.open(this.href); return false;"
+          (html-escape-string url)))
+
+(define (render-url-image url)
+  (html:a :href url :rel "nofollow" :class "link-image hide-while-loading"
+          :onclick "window.open(this.href); return false;"
+          (html:img :src url :alt url :onload "checkImageSize(this);")))
+
+(define (render-url-youtube host vid)
+  (html:object :class "youtube"
+               :width "@@embed-youtube-width@@"
+               :height "@@embed-youtube-height@@"
+               :type "application/x-shockwave-flash"
+               :data #`"http://,|host|/v/,|vid|"
+               :onload "scrollToBottom();"
+               (html:param :name "movie" :value #`"http://,|host|/v/,|vid|")
+               (html:param :name "wmode" :value "transparent")))
+
+(define (render-url-nicovideo vid)
+  (html:iframe :width "314" :height "176"
+               :src #`"http://ext.nicovideo.jp/thumb/,|vid|"
+               :scrolling "no" :class "nicovideo"
+               :frameborder "0"
+               :onload "scrollToBottom();"
+               (html:a :href #`"http://www.nicovideo.jp/watch/,|vid|"
+                       (html-escape-string
+                        #`"http://www.nicovideo.jp/watch/,|vid|"))))
+
+;;;
+;;;  Reading datafile
+;;;
+
+(define (with-read-locking file proc)
+  (call-with-input-file file
+    (lambda (in)
+      (cond [in
+             (sys-fcntl in F_SETLK (make <sys-flock> :type F_RDLCK))
+             (unwind-protect (proc in)
+               (sys-fcntl in F_SETLK (make <sys-flock> :type F_UNLCK)))]
+            [else (call-with-input-string "" proc)]))
+    :if-does-not-exist #f))
+
+;; Read the source file from offset START, and returns a list of
+;; lines and the updated offset that points the end of the source file.
+(define (read-diff source start)
+  (with-read-locking source
+    (lambda (in)
+      (port-seek in start)
+      (let1 tx (port->string-list in)
+        (values tx (port-tell in))))))
+
+(define (safe-read line)
+  (guard (e [(<read-error> e) #f]) (read-from-string line)))
+
+(define (safe-lines->sexps lines)
+  (filter pair? (map safe-read lines)))
+
+

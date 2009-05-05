@@ -1,0 +1,31 @@
+body { margin: 0; padding: 0; }
+#room-title { margin: 10pt; font-size: 150%; font-family: Sans, Ariel, Helvetica; }
+#left-pane  { margin: 10pt; padding: 5pt; }
+#left-pane #navigation { width:75%; text-align: right; }
+#view-pane { padding: 3px; border-width: 0pt; }
+.timestamp { float: right; color: #bbbbbb; font-size: 80%; }
+.chatter   { color: #907040; font-size: 95%; margin-top: 1em; }
+.permalink-anchor { float: right; color: #bbeeee; 
+                    text-decoration: none; font-size: 80%; }
+.entry-header { margin-top: 1em; }
+.entry-single { margin-left: 1.5em; }
+.entry-multi  { margin-left: 1.5em; background-color: #ddddff; }
+#status-pane { width: 100% }
+#status-pane p { text-align: right; font-size: 60%}
+#status-pane p .status-alert { color: #aa4444; }
+#status-pane p .status-ok    { color: #44aa44; }
+
+#archive-view { width: 75%; padding: 3px; border: inset 2px gray; }
+.archive-navigate { width: 75%; border-width: 0pt; }
+.archive-navigate table { width: 100%; border: none; }
+.archive-navigate .to-prev { text-align: left; }
+.archive-navigate .to-room { text-align: center; }
+.archive-navigate .to-next { text-align: right; }
+
+img { margin: 3px; border: none; }
+img.hide-while-loading { display: none; }
+img.wshrunk { width: @@img-size-limit@@px; }
+img.hshrunk { height: @@img-size-limit@@px; }
+
+object.youtube { margin: 3px; border: none; }
+iframe.nicovideo { margin: 3px; border: none; }
