@@ -10,7 +10,7 @@
 (use gauche.parseopt)
 (use srfi-19)
 
-(define *datadir* "@@server-data-dir@@")
+(define *datadir* "@@server-data-dir@@data")
 
 (define verbose (make-parameter #f))
 

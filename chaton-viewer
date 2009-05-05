@@ -201,8 +201,8 @@
 
 (define (main args)
   (let-args (cdr args) ([port "p=i" @@comet-port@@]
-                        [file "f=s" "@@server-data-dir@@current.dat"]
-                        [log  "l=s" "@@server-data-dir@@comet.log"])
+                        [file "f=s" "@@server-data-dir@@data/current.dat"]
+                        [log  "l=s" "@@server-data-dir@@logs/comet.log"])
     (log-open (if (equal? log "-") #t log))
     (run-viewer-server port file))
   0)

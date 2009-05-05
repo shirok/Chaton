@@ -10,7 +10,7 @@
 
 (define *limit* 2048)
 (define *datadir* (or (cgi-get-metavariable "CHATON_DATADIR")
-                      "@@server-data-dir@@"))
+                      "@@server-data-dir@@data"))
 (define *curfile*  (build-path *datadir* "current.dat"))
 
 (define *docdir*  (or (cgi-get-metavariable "CHATON_DOCDIR")

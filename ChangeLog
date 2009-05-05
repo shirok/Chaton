@@ -1,5 +1,14 @@
 2009-05-05  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-archiver, chaton-viewer, chaton-browser, chaton-poster:
+	  Changed current.dat and archive directory under $DATADIR/data/,
+	  and log directory under $DATADIR/logs/, respectievly.  Since
+	  the directory where current.dat exists must be writable from
+	  CGI scripts, it is safe to put them into a subdir so that
+	  we can secure $DATADIR itself.
+	* build-site (do-build): Ensure new directory strcuture, and
+	  also create the data files if it does not exist.
+
 	* chaton.js: Sets nickname cookie even post-text is empty; allowing
 	  the client to change nickname without actually posting a message.
 

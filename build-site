@@ -27,10 +27,17 @@
          [timestamp (number->string (sys-time) 36)]
          [chaton-js #`"chaton.,|timestamp|.js"])
     ;; ensure target directories
-    (for-each make-directory* (list docdir datadir bindir))
+    (for-each make-directory* (list bindir
+                                    (build-path bindir "data")
+                                    (build-path bindir "logs")
+                                    (build-path docdir "var")))
+    ;; ensure initial files existence
+    (create-if-does-not-exist (build-path bindir "data/current.dat") "")
+    (create-if-does-not-exist (build-path docdir "var/seq") "0")
     ;; clean old timestamped files
     (remove-files (directory-list docdir
                                   :add-path? #t :filter #/^chaton\.\w+\.js$/))
+    ;; copy files
     (let1 nconf (list* `(comet-script . ,comet-script)
                        `(cgi-script . ,cgi-script)
                        `(chaton-js . ,chaton-js)
@@ -58,6 +65,11 @@
                                 (cut read-line in)))
                :input inf :output outf :temporary-file #`",|outf|.t")
   (sys-chmod outf mode))
+
+(define (create-if-does-not-exist file content)
+  (with-output-to-file file
+    (lambda () (display content))
+    :if-exists #f))
 
 ;; This returns ((<var> . <val>) ...) of config file, in the REVERSE order
 ;; of apperance.  The order is important to allow overriding values by

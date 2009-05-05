@@ -11,7 +11,7 @@
 (use srfi-19)
 
 (define *room* "@@room-name@@")
-(define *datadir* "@@server-data-dir@@")
+(define *datadir* "@@server-data-dir@@data")
 (define *room-url* "@@httpd-url@@@@url-path@@")
 
 (define (main args)
@@ -35,12 +35,15 @@
                y m d)))
 
 (define (make-page content y m d)
-  (let1 title (format "Chaton ~a > Archives > ~a/~a/~a" *room* y m d)
+  (let1 title (format "~a > Archives > ~a/~a/~a" *room* y m d)
     (write-tree
      `(,(cgi-header :content-type "text/html; charset=utf-8")
        ,(html:html
          (html:head
-          (html:title title)
+          (html:title :id "room-title"
+                      (html:img :class "room-icon" :src "@@icon-url@@"
+                                :align "absmiddle" :alt "")
+                      (html-escape-string title))
           (html:link :href "@@httpd-url@@@@url-path@@chaton.css"
                      :rel "Stylesheet" :type "text/css")
           (html:script :src "@@prototype-url@@" :type "text/javascript")
