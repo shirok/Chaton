@@ -4,6 +4,10 @@ body { margin: 0; padding: 0; }
 #left-pane  { margin: 10pt; padding: 5pt; }
 #left-pane #navigation { width:75%; text-align: right; }
 #view-pane { padding: 3px; border-width: 0pt; }
+
+#post-form table { width: 75%; }
+#post-form table #post-text { width: 100%; }
+
 .timestamp { float: right; color: #bbbbbb; font-size: 80%; }
 .chatter   { color: #907040; font-size: 95%; margin-top: 1em; }
 .permalink-anchor { float: right; color: #bbeeee; 
