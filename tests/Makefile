@@ -1,4 +1,4 @@
-TESTS = lib.scm viewer.scm poster.scm
+TESTS = lib.scm viewer.scm poster.scm archiver.scm
 
 all:
 

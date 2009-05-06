@@ -1,14 +1,17 @@
 #!/usr/bin/env gosh
-;; This script should be run prediodically to truncate and
+;; This script should be run periodically to truncate and
 ;; save the logs.
 
-(use file.util)
-(use file.filter)
-(use util.match)
-(use gauche.fcntl)
-(use gauche.parameter)
-(use gauche.parseopt)
-(use srfi-19)
+(define-module chaton.archiver
+  (use file.util)
+  (use file.filter)
+  (use util.match)
+  (use gauche.fcntl)
+  (use gauche.parameter)
+  (use gauche.parseopt)
+  (use srfi-19)
+  (export run-archiver))
+(select-module chaton.archiver)
 
 (define *datadir* "@@server-data-dir@@data")
 
@@ -44,14 +47,15 @@
 
 ;; Chore for the day
 ;; (1) move the DATE's log into *datadir*/YYYY/MM/DD.dat
-;; (2) create a link of *datadir*/YYYY/MM/NEXTDAY.dat -> *datadir*/current.dat
+;; (2) create a link of *datadir*/YYYY/MM/NEXTDAY.dat -> ../../current.dat
+;;     and *datadir*/YYYY/MM/NEXTNEXTDAY.dat -> ../../current.dat
 ;; (3) truncate *datadir*/current.dat
 (define (chore-for-the-day date)
   (let* ([current  (build-path *datadir* "current.dat")]
          [backup   (build-path *datadir* "current.dat.bak")]
          [today    (daily-log-path date)]
-         [next     (date+ date 1)]
-         [tomorrow (daily-log-path next)])
+         [today+1  (daily-log-path (date+ date 1))]
+         [today+2  (daily-log-path (date+ date 2))])
     (call-with-output-file current
       (lambda (out)
         (unwind-protect
@@ -59,7 +63,8 @@
               (sys-fcntl out F_SETLKW (make <sys-flock> :type F_WRLCK))
               (copy-file current backup :if-exists :supersede) ; backup
               (make-directory* (sys-dirname today))
-              (make-directory* (sys-dirname tomorrow))
+              (make-directory* (sys-dirname today+1))
+              (make-directory* (sys-dirname today+2))
               (cond [(and (file-exists? today)
                           (not (file-is-symlink? today)))
                      (report "archive file ~a exists.  skipping.\n" today)]
@@ -68,11 +73,8 @@
                      (split-data-by-day current today date identity)
                      (report "truncating ~a\n" current)
                      (split-data-by-day current current date not)])
-              (cond [(file-exists? tomorrow)
-                     (report "link ~a exists.  skipping.\n" tomorrow)]
-                    [else
-                     (report "creating link ~a\n" tomorrow)
-                     (sys-symlink current tomorrow)]))
+              (mklink today+1)
+              (mklink today+2))
           (sys-fcntl out F_SETLK (make <sys-flock> :type F_UNLCK))))
       :if-exists :append :if-does-not-exist #f)))
 
@@ -82,6 +84,13 @@
 
 (define (date+ date days)
   (julian-day->date (+ (date->julian-day date) days)))
+
+(define (mklink daily-file)
+  (cond [(file-exists? daily-file)
+         (report "link ~a exists.  skipping.\n" daily-file)]
+        [else
+         (report "creating link ~a\n" daily-file)
+         (sys-symlink "../../current.dat" daily-file)]))
 
 (define (parse-date str)
   (rxmatch-case str
@@ -96,13 +105,20 @@
        (make-date 0 0 0 0 dd mm yy (date-zone-offset (current-date))))]
     [else (exit 1 "bad date: ~a" str)]))
 
-(define (main args)
+(define (run-archiver args)
   (let-args (cdr args) ([q "q|quiet" #f] . args)
     (parameterize ([verbose (not q)])
       (match args
         [()        (chore-for-the-day (date+ (beginning (current-date)) -1))]
         [(datestr) (chore-for-the-day (parse-date datestr))]))
     0))
+
+(select-module user)
+
+;;;===================================================================
+
+(import chaton.archiver)
+(define main run-archiver)
 
 ;; Local variables:
 ;; mode: scheme

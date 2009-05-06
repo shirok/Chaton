@@ -1,5 +1,12 @@
 2009-05-06  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-archiver (chore-for-the-day): Create a link two days
+	  advance.  Because we can't start archiving data for, say, 1/10,
+	  until it's 1/11, and at that moment we need 1/11's link has to
+	  be already created.  Who create that link?  The archiver process
+	  that ran 1/10, which archived the data for 1/9.  Thus we need
+	  to create link for two days beyond the date we're archiving.
+
 	* chaton-viewer: Added -r option (restart) and -c option (check)
 	  for ease of server management.
 
