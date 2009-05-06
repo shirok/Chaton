@@ -20,30 +20,42 @@
 ;;;  Entries
 ;;;
 
-;; es : ((<nick> (<sec> <nsec>) <text>) ...)
-;; last-state : (<chatter> . <timestamp>)
+;; es : ((<nick> (<sec> <nsec>) <text> <ipaddr>) ...)
+;; last-state : (<chatter> <ipaddr> <timestamp>)
 ;; returns <text-tree> and new-state
 (define (chaton-render es last-state)
-  (map-accum chaton-render-1 last-state es))
+  (map-accum chaton-render-1 (ensure-state last-state) es))
 
 ;; render from file, starting from POS.
 ;; returns <text-tree>, new-state, and new POS.
 (define (chaton-render-from-file file pos last-state)
   (receive (lines pos) (read-diff file pos)
     (receive (tree new-state)
-        (chaton-render (safe-lines->sexps lines) last-state)
+        (chaton-render (safe-lines->sexps lines) (ensure-state last-state))
       (values tree new-state pos))))
 
 ;;;
 ;;;  Rendering
 ;;;
 
+(define (ensure-state last-state) ; bridge to support backward compat. 
+  (match last-state
+    [(c i t) last-state]
+    [_       '(#f #f #f)]))
+
+(define (make-state chatter ip timestamp) (list chatter ip timestamp))
+(define (state-chatter last-state) (car last-state))
+(define (state-ip last-state)      (cadr last-state))
+(define (state-timestamp last-state) (caddr last-state))
+
 (define (chaton-render-1 entry last-state)
-  (match-let1 (nick (sec usec) text . _) entry
+  (match-let1 (nick (sec usec) text . opt) entry
     (let* ([anchor-string (format "entry-~x-~2,'0x" sec usec)]
-           [permalink (make-permalink sec anchor-string)])
-      (values `(,(if (and (equal? nick (car last-state))
-                          (< (abs (- (cdr last-state) sec)) 240))
+           [permalink (make-permalink sec anchor-string)]
+           [ip (if (pair? opt) (car opt) #f)])
+      (values `(,(if (and (equal? nick (state-chatter last-state))
+                          (equal? ip (state-ip last-state))
+                          (< (abs (- (state-timestamp last-state) sec)) 240))
                    '()
                    (html:div
                     :class "entry-header"
@@ -59,7 +71,7 @@
                              (safe-text text))
                    (html:div :class "entry-single" :id anchor-string
                              (html:span (safe-text text)))))
-              (cons nick sec)))))
+              (make-state nick ip sec)))))
 
 (define (make-permalink sec anchor)
   (build-path *archivepath*

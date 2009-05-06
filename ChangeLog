@@ -1,6 +1,7 @@
 2009-05-06  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-poster (make-entry): Record remote IP as well.
+	* chaton.scm (chaton-render-1): Adapted to the new entry.
 
 	* chaton.js (enablePost): moves focus forcibly to fix a weird
 	  behavior of dissapearing cursor in the textarea.
