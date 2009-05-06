@@ -48,7 +48,8 @@
   (let1 s (string-incomplete->complete text #\?)
     (receive (sec usec) (sys-gettimeofday)
       `(,nick (,sec ,usec)
-              ,(if (> (string-length s) *limit*) (string-take s *limit*) s)))))
+              ,(if (> (string-length s) *limit*) (string-take s *limit*) s)
+              ,(cgi-get-metavariable "REMOTE_ADDR")))))
 
 ;; seqfile is only touched while current.txt is locked, so we don't
 ;; bother to lock it.

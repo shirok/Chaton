@@ -1,8 +1,10 @@
 2009-05-06  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-poster (make-entry): Record remote IP as well.
+
 	* chaton.js (enablePost): moves focus forcibly to fix a weird
 	  behavior of dissapearing cursor in the textarea.
-	
+
 	* chaton-archiver (chore-for-the-day): Create a link two days
 	  advance.  Because we can't start archiving data for, say, 1/10,
 	  until it's 1/11, and at that moment we need 1/11's link has to
