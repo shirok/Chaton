@@ -58,7 +58,7 @@
            (navigate-bar y m d))))))))
 
 (define (format-content archfile)
-  (chaton-render-from-file archfile 0 '(#f . #f)))
+  (chaton-render-from-file archfile 0 #f))
 
 (define (navigate-bar y m d)
   (html:div
