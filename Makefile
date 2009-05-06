@@ -1,4 +1,4 @@
-GOSH = /home/shiro/bin/gosh
+GOSH = gosh
 
 all: rooms
 
@@ -11,7 +11,9 @@ install: all
 	done
 
 check:
-	cd tests; $(GOSH) ./poster.scm
+	@rm -f test.record test.log
+	cd tests; GAUCHE_TEST_RECORD_FILE=../test.record $(MAKE) check
+	@cat test.record
 
 clean:
-	rm -rf core *.log *~ tests/data.o tests/*~
+	rm -rf test.record *.log *~ tests/data.o tests/*~
