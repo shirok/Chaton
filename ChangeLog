@@ -1,5 +1,8 @@
 2009-05-05  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-viewer (emit-tail, spawn-monitor): fixed *mutex* treatment.
+	  (emit-skeleton): no need to read out *text-map* yet.
+
 	* build-site: Check if chaton.js needs to be updated, and if not,
 	  do not replace chaton.js (and the viewer's version).
 

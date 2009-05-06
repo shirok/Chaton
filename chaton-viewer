@@ -20,6 +20,7 @@
   )
 (select-module chaton.viewer)
 
+;; Global data shared between threads.  Accessor should lock *mutex*.
 (define *mutex* (make-mutex))
 (define *cv* (make-condition-variable))
 (define *size* 0)
@@ -44,7 +45,9 @@
 
 (define (spawn-monitor source)
   (log-format "monitor start on ~s" source)
-  (with-locking-mutex *mutex* (cut pull-text! source #t))
+  (mutex-lock! *mutex*)
+  (pull-text! source #t)                ; this unlocks mutex when error.
+  (mutex-unlock! *mutex*)
   (thread-start! (make-thread (cut do-monitor source))))
 
 (define (do-monitor source)
@@ -62,7 +65,10 @@
       (loop)))
   (do-monitor source))
 
-(define (pull-text! source trunc?) ; must be called while lock is held
+;; Reads source file into *text-map*, updates global data.
+;; *mutex* must be locked by the caller.   If an error occurs,
+;; pull-text! unlocks *mutex*.
+(define (pull-text! source trunc?)
   (when trunc? (tree-map-clear! *text-map*))
   (guard (e [else (mutex-unlock! *mutex*) (raise e)])
     (let ([pos (if trunc? 0 *size*)]
@@ -106,8 +112,11 @@
         (cond [(m 1) => x->integer] [else -1]))
       (raise 'eof))) 
 
+;; NB: it may be more efficient if we send out existing content here,
+;; instead of letting client to fetch it immediately after this reply.
+;; A possible option for future development.
 (define (emit-skeleton out)
-  (write-tree (make-skeleton (text-retrieve *text-map* 0)) out)
+  (write-tree (make-skeleton) out)
   (flush out))
 
 (define (emit-tail csock pos)
@@ -118,19 +127,19 @@
              (loop)
              (send-ping pos csock))]
           [(< pos *size*)
-           (let1 s *size*
+           (let ([s *size*] [t (text-retrieve *text-map* pos)])
              (mutex-unlock! *mutex*)
-             (send-diff pos s csock))]
+             (send-diff pos s t csock))]
           [else                         ;file is truncated?
-           (let1 s *size*
+           (let ([s *size*] [t (text-retrieve *text-map* 0)])
              (mutex-unlock! *mutex*)
-             (send-diff 0 s csock))])))
+             (send-diff 0 s t csock))])))
 
-(define (send-diff start end csock)
+(define (send-diff start end text csock)
   (log-child csock "sending ~s-~s" start end)
   (send-json (format "{'pos':~s,'nc':~s,'ver':~s,'text':~s}"
                      end (client-counter 'get) "@@version@@"
-                     (text-retrieve *text-map* start))
+                     text)
              csock))
 
 (define (send-ping pos csock)
@@ -179,7 +188,7 @@
 ;;;   Content to distribute
 ;;;
 
-(define (make-skeleton content)
+(define (make-skeleton)
   (html:html
    (html:head (html:title "Test")
               (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet" :type "text/css")
