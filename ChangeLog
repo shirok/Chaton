@@ -1,3 +1,8 @@
+2009-05-06  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer: Added -r option (restart) and -c option (check)
+	  for ease of server management.
+
 2009-05-05  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-viewer (emit-tail, spawn-monitor): fixed *mutex* treatment.

@@ -11,14 +11,23 @@
   (use gauche.net)
   (use gauche.logger)
   (use gauche.fcntl)
+  (use gauche.process)
   (use text.html-lite)
   (use text.tree)
   (use rfc.822)
   (use file.util)
   (use util.match)
-  (export run-viewer-server restart-viewer-server shutdown-viewer-server)
+  (use util.list)
+  (export VIEWER_PORT VIEWER_FILE VIEWER_LOG
+          run-viewer-server restart-viewer-server shutdown-viewer-server
+          check-viewer-server)
   )
 (select-module chaton.viewer)
+
+(define-constant VIEWER_SCRIPT "@@server-bin-dir@@@@comet-script@@")
+(define-constant VIEWER_PORT (x->integer "@@comet-port@@"))
+(define-constant VIEWER_FILE "@@server-data-dir@@data/current.dat")
+(define-constant VIEWER_LOG "@@server-data-dir@@logs/comet.log")
 
 ;; Global data shared between threads.  Accessor should lock *mutex*.
 (define *mutex* (make-mutex))
@@ -32,10 +41,12 @@
 ;;;
 
 (define (run-viewer-server port source)
-  (initialize port)
+  (initialize port source)
   (let1 server-sock (make-server-socket 'inet port :reuse-addr? #t)
     (spawn-monitor source)
-    (guard (e [else (socket-close server-sock) (raise e)])
+    (guard (e [else
+               (log-format "main loop error: ~a" (ref e'message))
+               (cleanup)])
       (let loop ()
         (spawn-child (socket-accept server-sock))
         (loop)))))
@@ -216,10 +227,10 @@
   (sys-symlink (x->string (sys-getpid)) *pidfile*))
 
 ;;;
-;;;  Initialize and shutdown
+;;;  Initialize, shutdown, and process management
 ;;;
 
-(define (initialize port)
+(define (initialize port file)
   (guard (e [(<system-error> e)
              (cond [(read-pid)
                     => (lambda (pid)
@@ -231,7 +242,7 @@
     (write-pid))
   (log-format "starting at port ~a" port)
   (set-signal-handler!
-   (sys-sigset SIGINT SIGTERM)
+   (sys-sigset SIGHUP SIGINT SIGTERM)
    (lambda (s)
      (log-format "exitting by signal ~a" (sys-signal-name s))
      (cleanup))))
@@ -249,8 +260,45 @@
         (unless quiet? (print "@@comet-script@@ pid "pid" is killed.")))
       (unless quiet? (print "@@comet-script@@ isn't running.")))))
 
-(define (restart-viewer-server quiet?)
-  (exit 1 "-r option not supported yet"))
+(define (check-viewer-server port)
+  (let1 pid (read-pid)
+    (if pid
+      (if (check-running pid port)
+        (print "@@comet-script@@ (pid "pid") running.")
+        (print "@@comet-script@@ (pid "pid") does not respond.\
+              \nYou might want to remove "*pidfile*"."))
+      (print "@@comet-script@@ is not running."))))
+
+(define (restart-viewer-server quiet? port file)
+  (let1 pid (read-pid)
+    (when pid
+      (guard (e [(<system-error> e) (sys-unlink *pidfile*)])
+        (sys-kill pid SIGTERM)
+        (sys-sleep 1)))
+    ;; We start new instance.
+    ;; NB: We should be more careful about daemonization; better to
+    ;; redirect stdout and stderr to /dev/null for the child process.
+    (let1 pid (sys-fork)
+      (cond [(= pid 0) (run-viewer-server port file)]
+            [(check-running pid port)
+             (unless quiet? (print "@@comet-script@@ Restarted (pid "pid")."))]
+            [else
+             (exit 1 "@@comet-script@@ could'nt be started.")]))))
+
+(define (check-running pid port)
+  (let loop ((n 0))
+    (cond [(= n 3) #f]                  ;retry limit
+          [else
+           (sys-sleep 1)
+           (or (guard (e [(<system-error> e) #f])
+                 (call-with-client-socket
+                     (make-client-socket 'inet "localhost" port)
+                   (lambda (in out)
+                     (display "GET / HTTP/1.1\r\nhost: localhost\r\n\r\n" out)
+                     (flush out)
+                     (port->string in)
+                     #t)))
+               (loop (+ n 1)))])))
 
 ;;;===================================================================
 
@@ -259,30 +307,29 @@
 (use gauche.parseopt)
 (import chaton.viewer)
 
-(define *port* @@comet-port@@)
-(define *file* "@@server-data-dir@@data/current.dat")
-(define *logfile* "@@server-data-dir@@logs/comet.log")
-
 (define (main args)
-  (let-args (cdr args) ([port "p|port=i" *port*]
-                        [file "f|file=s" *file*]
-                        [log  "l|log=s" *logfile*]
+  (let-args (cdr args) ([port "p|port=i" VIEWER_PORT]
+                        [file "f|file=s" VIEWER_FILE]
+                        [log  "l|log=s"  VIEWER_LOG]
                         [kill "k|kill"]
+                        [check "c|check"]
                         [restart "r|restart"]
                         [quiet? "q|quiet"]
                         [else => (lambda _ (usage))])
+    (log-open (if (equal? log "-") #t log))
     (cond
-     [kill (shutdown-viewer-server quiet?)]
-     [restart (restart-viewer-server quiet?)]
-     [else (log-open (if (equal? log "-") #t log))
-           (run-viewer-server port file)]))
+     [kill    (shutdown-viewer-server quiet?)]
+     [check   (check-viewer-server port)]
+     [restart (restart-viewer-server quiet? port file)]
+     [else    (run-viewer-server port file)]))
   0)
 
 (define (usage)
   (exit 1 #`"Usage: \
    \n  @@comet-script@@ [-p port][-f file][-l log] \
    \n  @@comet-script@@ -k|--kill\
-   \n  @@comet-script@@ -r|--restart\
+   \n  @@comet-script@@ -c|--check [-p port]\
+   \n  @@comet-script@@ -r|--restart [-p port][-f file][-l log]\
    \nOptions:\
    \n  The first form starts the Chaton viewer server.  The following\
    \n  options are accepted, though you shouldn't need to change the\
@@ -293,7 +340,8 @@
    \n   -l, --log LOGFILE Specify the log file.  '-' for stdout.\
    \n           [,*logfile*]\
    \n  The second form (-k or --kill) shuts down the existing viewer.\
-   \n  The third form (-r or --restart) restarts the running viewer if there's\
+   \n  The third form (-c or --check) checks if the server is running.\
+   \n  The fourth form (-r or --restart) restarts the running viewer if there's\
    \n  one, or starts a new viewer, in the background process."))
 
 ;; Local variables:
