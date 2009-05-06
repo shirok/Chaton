@@ -16,7 +16,7 @@
   (use rfc.822)
   (use file.util)
   (use util.match)
-  (export run-viewer-server)
+  (export run-viewer-server restart-viewer-server shutdown-viewer-server)
   )
 (select-module chaton.viewer)
 
@@ -32,6 +32,7 @@
 ;;;
 
 (define (run-viewer-server port source)
+  (initialize port)
   (let1 server-sock (make-server-socket 'inet port :reuse-addr? #t)
     (spawn-monitor source)
     (guard (e [else (socket-close server-sock) (raise e)])
@@ -201,6 +202,56 @@
     (html:div :id "status-pane" (html:p :id "status-line" "Connecting..."))
     )))
 
+;;;
+;;;  Daemon management
+;;;
+
+(define *pidfile* "@@server-data-dir@@viewer.pid")
+
+(define (read-pid)
+  (guard (e [(<system-error> e) #f])
+    (string->number (sys-readlink *pidfile*))))
+
+(define (write-pid)
+  (sys-symlink (x->string (sys-getpid)) *pidfile*))
+
+;;;
+;;;  Initialize and shutdown
+;;;
+
+(define (initialize port)
+  (guard (e [(<system-error> e)
+             (cond [(read-pid)
+                    => (lambda (pid)
+                         (unless (= pid (sys-getpid))
+                           (exit 1 "@@comet-script@@ seems already running \
+                                   (pid ~a)." pid)))]
+                   [else (exit 1 "@@comet-script@@ can't write pidfile (~a): \
+                                  ~a" *pidfile* (ref e'message))])])
+    (write-pid))
+  (log-format "starting at port ~a" port)
+  (set-signal-handler!
+   (sys-sigset SIGINT SIGTERM)
+   (lambda (s)
+     (log-format "exitting by signal ~a" (sys-signal-name s))
+     (cleanup))))
+
+(define (cleanup)
+  (sys-unlink *pidfile*)
+  (exit 0))
+
+(define (shutdown-viewer-server quiet?)
+  (let1 pid (read-pid)
+    (if pid
+      (guard (e [(<system-error> e)
+                 (exit 1 "Killing @@comet-script@@ failed: ~a" (ref e'message))])
+        (sys-kill pid SIGINT)
+        (unless quiet? (print "@@comet-script@@ pid "pid" is killed.")))
+      (unless quiet? (print "@@comet-script@@ isn't running.")))))
+
+(define (restart-viewer-server quiet?)
+  (exit 1 "-r option not supported yet"))
+
 ;;;===================================================================
 
 (select-module user)
@@ -208,13 +259,42 @@
 (use gauche.parseopt)
 (import chaton.viewer)
 
+(define *port* @@comet-port@@)
+(define *file* "@@server-data-dir@@data/current.dat")
+(define *logfile* "@@server-data-dir@@logs/comet.log")
+
 (define (main args)
-  (let-args (cdr args) ([port "p=i" @@comet-port@@]
-                        [file "f=s" "@@server-data-dir@@data/current.dat"]
-                        [log  "l=s" "@@server-data-dir@@logs/comet.log"])
-    (log-open (if (equal? log "-") #t log))
-    (run-viewer-server port file))
+  (let-args (cdr args) ([port "p|port=i" *port*]
+                        [file "f|file=s" *file*]
+                        [log  "l|log=s" *logfile*]
+                        [kill "k|kill"]
+                        [restart "r|restart"]
+                        [quiet? "q|quiet"]
+                        [else => (lambda _ (usage))])
+    (cond
+     [kill (shutdown-viewer-server quiet?)]
+     [restart (restart-viewer-server quiet?)]
+     [else (log-open (if (equal? log "-") #t log))
+           (run-viewer-server port file)]))
   0)
+
+(define (usage)
+  (exit 1 #`"Usage: \
+   \n  @@comet-script@@ [-p port][-f file][-l log] \
+   \n  @@comet-script@@ -k|--kill\
+   \n  @@comet-script@@ -r|--restart\
+   \nOptions:\
+   \n  The first form starts the Chaton viewer server.  The following\
+   \n  options are accepted, though you shouldn't need to change the\
+   \n  default values (showin in []) unless you're doing some experiment.\
+   \n   -p, --port PORT   Specify the server port number.  [,*port*]\
+   \n   -f, --file FILE   Specify the file the viewer monitors.\
+   \n           [,*file*]\
+   \n   -l, --log LOGFILE Specify the log file.  '-' for stdout.\
+   \n           [,*logfile*]\
+   \n  The second form (-k or --kill) shuts down the existing viewer.\
+   \n  The third form (-r or --restart) restarts the running viewer if there's\
+   \n  one, or starts a new viewer, in the background process."))
 
 ;; Local variables:
 ;; mode: scheme

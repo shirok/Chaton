@@ -2,6 +2,8 @@
 
 	* chaton-viewer (emit-tail, spawn-monitor): fixed *mutex* treatment.
 	  (emit-skeleton): no need to read out *text-map* yet.
+	  (main): Added graceful termination by signalling, write pid file
+	  for management, and -k option to kill the running server.
 
 	* build-site: Check if chaton.js needs to be updated, and if not,
 	  do not replace chaton.js (and the viewer's version).
