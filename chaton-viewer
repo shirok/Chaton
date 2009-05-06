@@ -18,6 +18,7 @@
   (use file.util)
   (use util.match)
   (use util.list)
+  (use www.cgi)
   (export VIEWER_PORT VIEWER_FILE VIEWER_LOG
           run-viewer-server restart-viewer-server shutdown-viewer-server
           check-viewer-server)
@@ -29,11 +30,11 @@
 (define-constant VIEWER_FILE "@@server-data-dir@@data/current.dat")
 (define-constant VIEWER_LOG "@@server-data-dir@@logs/comet.log")
 
-;; Global data shared between threads.  Accessor should lock *mutex*.
+;; Global data shared between threads.  Accessor should lock *mutex* (ugh!).
 (define *mutex* (make-mutex))
 (define *cv* (make-condition-variable))
 (define *size* 0)
-(define *last-state* '(#f . #f))
+(define *last-state* #f)
 (define *text-map* (make-tree-map = <))
 
 ;;;
@@ -44,6 +45,7 @@
   (initialize port source)
   (let1 server-sock (make-server-socket 'inet port :reuse-addr? #t)
     (spawn-monitor source)
+    (spawn-client-tracker)
     (guard (e [else
                (log-format "main loop error: ~a" (ref e'message))
                (cleanup)])
@@ -84,7 +86,7 @@
   (when trunc? (tree-map-clear! *text-map*))
   (guard (e [else (mutex-unlock! *mutex*) (raise e)])
     (let ([pos (if trunc? 0 *size*)]
-          [last-state (if trunc? '(#f . #f) *last-state*)])
+          [last-state (if trunc? #f *last-state*)])
       (receive (ttree new-state new-pos)
           (chaton-render-from-file source pos last-state)
         (tree-map-put! *text-map* pos (tree->string ttree))
@@ -96,68 +98,94 @@
 ;;;
 
 (define (spawn-child csock)
-  (log-child csock "start")
   (thread-start! (make-thread (cut do-child csock))))
 
 (define (do-child csock)
   (unwind-protect
       (guard (e [(eq? e 'eof) (log-child csock "disconnected")]
                 [else (log-child csock "error ~s" (ref e'message))])
-        (client-counter 'inc)
-        (let1 pos (get-header csock)
-          (if (>= pos 0)
-            (emit-tail csock pos)
-            (emit-skeleton (socket-output-port csock)))
-          (log-child csock "finishing")))
-    (begin
-      (client-counter 'dec)
-      (socket-close csock))))
+        (match-let1 (pos . cid) (get-header csock)
+          (if pos
+            (emit-tail csock pos cid)
+            (emit-skeleton (socket-output-port csock)))))
+    (socket-close csock)))
 
 ;; returns the integer parameter given to the query
 (define (get-header csock)
   (or (and-let* ([in (socket-input-port csock)]
                  [req (read-line in)]
                  [ (string? req) ]
-                 [m (#/^GET\s+\/(?:\?t=\w+(?:&p=(\d+))?)?\s+HTTP\/1.1/i req)]
+                 [m (#/^GET\s+\/(?:\?(\S+)?)?\s+HTTP\/1.1/i req)]
+                 [p (cond [(m 1) => (cut cgi-parse-parameters :query-string <>)]
+                          [else '()])]
                  [hdrs (rfc822-header->list in)])
         (log-child csock "request ~s" req)
-        (cond [(m 1) => x->integer] [else -1]))
+        (cons (cgi-get-parameter "p" p :convert string->number)   ;pos
+              (cgi-get-parameter "c" p :convert string->number))) ;cid
       (raise 'eof))) 
 
 ;; NB: it may be more efficient if we send out existing content here,
 ;; instead of letting client to fetch it immediately after this reply.
 ;; A possible option for future development.
 (define (emit-skeleton out)
-  (write-tree (make-skeleton) out)
+  (write-tree (make-skeleton (new-client-cid)) out)
   (flush out))
 
-(define (emit-tail csock pos)
+;; Let the client wait until one of the following condition is met:
+;;
+;;  - The database file has changed (pos != *size*).  We send the
+;;    added data back to the client.
+;;  - The client disconnected.
+;;  - 'Soft' timeout reached.   'Soft' timeout is somewhere between
+;;    15-30 seconds.  In this case we check if the number of clients
+;;    has been changed; if not, we wait again.  If it has, we send
+;;    back a ping packet to notify the change of the number of clients.
+;;  - 'Hard' timeout reached.   'Hard' timeout is around 5 minutes.
+;;    We send back ping packet to the client anyway.  This is necessary
+;;    to detect if the client is gone.
+
+(define (emit-tail csock pos cid)
+  (define ccnt (get-num-clients))
+  (define time-started (sys-time))
+  (define ncid (client-connected csock cid)) ; possibly update cid
   (let loop ()
     (mutex-lock! *mutex*)
     (cond [(equal? pos *size*)
-           (if (mutex-unlock! *mutex* *cv* (+ 30 (random-integer 30)))
-             (loop)
-             (send-ping pos csock))]
+           ;; wait until *size* changes or timeout
+           (cond
+            [(not (eqv? ncid cid)) ; this is reconnection after server restart.
+             (mutex-unlock! *mutex*)
+             (send-ping pos ncid (get-num-clients) csock)]
+            [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15))) (loop)]
+            [(< time-started (- (sys-time) (+ 270 (random-integer 60))))
+             (mutex-unlock! *mutex*)
+             (send-ping pos ncid (get-num-clients) csock)] ; hard timeout
+            [(and-let* ([ccnt2 (get-num-clients)]
+                        [ (not (= ccnt ccnt2)) ])
+               (mutex-unlock! *mutex*)
+               (send-ping pos ncid ccnt2 csock) #t)] ;; soft timeout, ccnt change
+            [else (loop)])]
           [(< pos *size*)
            (let ([s *size*] [t (text-retrieve *text-map* pos)])
              (mutex-unlock! *mutex*)
-             (send-diff pos s t csock))]
+             (send-diff pos s t ncid csock))]
           [else                         ;file is truncated?
            (let ([s *size*] [t (text-retrieve *text-map* 0)])
              (mutex-unlock! *mutex*)
-             (send-diff 0 s t csock))])))
+             (send-diff 0 s t ncid csock))])))
 
-(define (send-diff start end text csock)
+(define (send-diff start end text cid csock)
   (log-child csock "sending ~s-~s" start end)
-  (send-json (format "{'pos':~s,'nc':~s,'ver':~s,'text':~s}"
-                     end (client-counter 'get) "@@version@@"
-                     text)
+  (client-replied csock cid)
+  (send-json (format "{'pos':~s,'nc':~s,'ver':~s,'cid':~s,'text':~s}"
+                     end (get-num-clients) "@@version@@" cid text)
              csock))
 
-(define (send-ping pos csock)
-  (log-child csock "pinging back")
-  (send-json (format "{'pos':~s,'nc':~s,'ver':~s,'text':''}"
-                     pos (client-counter 'get) "@@version@@")
+(define (send-ping pos cid ccnt csock)
+  (log-child csock "ping back ~a" cid)
+  (client-replied csock cid)
+  (send-json (format "{'pos':~s,'nc':~s,'ver':~s,'cid':~s,'text':''}"
+                     pos ccnt "@@version@@" cid)
              csock))
 
 (define (send-json json csock) 
@@ -184,8 +212,78 @@
     (sockaddr-name addr)))
 
 ;;;
-;;;   Client counter
+;;;   Client tracking
 ;;;
+
+;; Active client table.  When client first connects (GET to '/') we
+;; allocate a cid for it.    *client-table* maps cid to client's
+;; state : (<waiting> . <timestamp>).   <timestamp> is the last time
+;; we sent back to the client.  <waiting> is #t if the client is connecting
+;; to us and waiting for reply.   If <waiting> is #t, we know the client
+;; is active.  If <waiting> is #f and <timestamp> is older than CLNT_TIMEOUT
+;; from now, we assume the client is gone.  An active client usually reconnects
+;; immediatly after we send back the reply, so we can set CLNT_TIMEOUT
+;; fairly short.
+(define *clnt-mutex* (make-mutex))
+(define *clnt-table* (make-hash-table 'eqv?)) ; cid -> (waiting . timestamp)
+(define-constant CLNT_TIMEOUT 10)
+(define-constant CID_MAX #x10000000)
+
+(define (%allocate-cid init?)
+  (let loop ([cid (random-integer CID_MAX)])
+    (cond [(hash-table-get *clnt-table* cid #f)
+           (loop (random-integer CID_MAX))]
+          [else
+           (hash-table-put! *clnt-table* cid `(,(not init?) . ,(sys-time)))
+           cid])))
+
+(define (new-client-cid)
+  (with-locking-mutex *clnt-mutex* (cut %allocate-cid #t)))
+
+;; returns cid, possibly new one if the provided one is obsolete.
+(define (client-connected csock cid)
+  (with-locking-mutex *clnt-mutex*
+    (lambda ()
+      (cond [(hash-table-get *clnt-table* cid #f)
+             => (lambda (x)
+                  (hash-table-put! *clnt-table* cid `(#t . (cdr x)))
+                  cid)]
+            [else
+             (rlet1 ncid (%allocate-cid #f)
+               (log-child csock "child has unknown cid: ~a, reallocating ~a"
+                          cid ncid))]))))
+
+(define (client-replied csock cid)
+  (with-locking-mutex *clnt-mutex*
+    (lambda ()
+      (cond [(hash-table-get *clnt-table* cid #f)
+             => (lambda (_)
+                  (hash-table-put! *clnt-table* cid `(#f . ,(sys-time))))]
+            [else (log-child csock "child has unknown cid: ~a" cid)]))))
+
+(define (get-num-clients)
+  (with-locking-mutex *clnt-mutex* (cut hash-table-num-entries *clnt-table*)))
+
+(define (client-sweep!)
+  (with-locking-mutex *clnt-mutex*
+    (lambda ()
+      (let1 lim (- (sys-time) CLNT_TIMEOUT)
+        (hash-table-for-each
+         *clnt-table*
+         (lambda (k v)
+           (match-let1 (waiting . ts) v
+             (when (and (not waiting) (<= ts lim))
+               (log-format "client ~a gone" k)
+               (hash-table-delete! *clnt-table* k)))))))))
+
+(define (client-tracker)
+  (sys-sleep 1)
+  (guard (e [else (log-format "tracker: ~a" (ref e'message))])
+    (client-sweep!))
+  (client-tracker))
+
+(define (spawn-client-tracker)
+  (thread-start! (make-thread client-tracker)))
 
 (define client-counter
   (let ([n 0] [mutex (make-mutex)])
@@ -200,7 +298,7 @@
 ;;;   Content to distribute
 ;;;
 
-(define (make-skeleton)
+(define (make-skeleton cid)
   (html:html
    (html:head (html:title "Test")
               (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet" :type "text/css")
@@ -208,7 +306,7 @@
               (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
                            :type "text/javascript"))
    (html:body
-    :onload "fetchContent();"
+    :onload (format "fetchContent(~d);" cid)
     (html:div :id "view-pane")
     (html:div :id "status-pane" (html:p :id "status-line" "Connecting..."))
     )))
@@ -231,6 +329,7 @@
 ;;;
 
 (define (initialize port file)
+  (random-source-randomize! default-random-source)
   (guard (e [(<system-error> e)
              (cond [(read-pid)
                     => (lambda (pid)

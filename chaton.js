@@ -150,29 +150,27 @@ function initMainBody() {
 var pos = 0;
 var seq = 0;
 
-function fetchContent() {
+function fetchContent(cid) {
     seq = (seq+1)%100;
     var ts = ((new Date).getTime()).toString(36) + seq.toString(36);
-    new Ajax.Request('/?t=' + ts + '&p=' + pos,
+    new Ajax.Request('/?t=' + ts + '&p=' + pos + '&c=' + cid,
       {
           method: 'get',
           evalJSON: 'force',
-          onSuccess: function(t) { 
-              insertContent(t.responseJSON); 
-          },
+          onSuccess: function(t) { insertContent(t.responseJSON, cid); },
           // When Comet server shuts down, Firefox triggers onException,
           // while IE7 triggers onFailure.
-          onFailure: function(t) { fetchRetry(); },
-          onException: function(r, e) { fetchRetry(); }
+          onFailure: function(t) { fetchRetry(cid); },
+          onException: function(r, e) { fetchRetry(cid); }
       });
 }
 
-function fetchRetry() {
+function fetchRetry(cid) {
     showStatus('Connection Lost.  Retrying...', 'status-alert');
-    setTimeout(resumeFetch, 10000);
+    setTimeout(function () { resumeFetch(cid); }, 10000);
 }
 
-function insertContent(json) {
+function insertContent(json, cid) {
     if (json.ver != '@@version@@') {
         // The comet server is updated.  We replace the entire document.
         document.location.href = '@@httpd-url@@:@@comet-port@@/';
@@ -186,12 +184,12 @@ function insertContent(json) {
     $('view-pane').insert(json.text);
     pos = json.pos;
     scrollToBottom();
-    fetchContent();
+    fetchContent(json.cid);
 }
 
-function resumeFetch() {
+function resumeFetch(cid) {
     showStatus('Connecting...', 'status-ok');
-    fetchContent();
+    fetchContent(cid);
 }
 
 function showStatus(text, klass) {

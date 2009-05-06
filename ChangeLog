@@ -1,5 +1,11 @@
 2009-05-06  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-viewer (emit-tail), chaton.js (fetchContent): Manage clients
+	  using clients ids.  If no status change, ping back to a client
+	  in much longer time (~5min) than before (~45sec) for less traffic.
+	  Also tracks # of clients more precisely, though there is some
+	  delay involved.
+
 	* chaton-poster (make-entry): Record remote IP as well.
 	* chaton.scm (chaton-render-1): Adapted to the new entry.
 
