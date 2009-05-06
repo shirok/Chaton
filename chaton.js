@@ -43,6 +43,8 @@ function enablePost(clearp) {
   $('post-text').disabled = false;
   $('post-form').disabled = false;
   if (clearp) { $('post-text').clear(); }
+  $('post-submit').focus();
+  $('post-text').focus();
 }
 
 function setNickname() {
