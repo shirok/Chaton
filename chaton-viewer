@@ -246,7 +246,7 @@
     (lambda ()
       (cond [(hash-table-get *clnt-table* cid #f)
              => (lambda (x)
-                  (hash-table-put! *clnt-table* cid `(#t . (cdr x)))
+                  (hash-table-put! *clnt-table* cid `(#t . ,(cdr x)))
                   cid)]
             [else
              (rlet1 ncid (%allocate-cid #f)
