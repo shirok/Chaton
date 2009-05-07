@@ -14,7 +14,7 @@ body { margin: 0; padding: 0; }
                     text-decoration: none; font-size: 80%; }
 .entry-header { margin-top: 1em; }
 .entry-single { margin-left: 1.5em; }
-.entry-multi  { margin-left: 1.5em; background-color: #ddddff; }
+.entry-multi  { margin-left: 1.5em; background-color: #ddddff; overflow: auto;}
 #status-pane { width: 100% }
 #status-pane p { text-align: right; font-size: 60%}
 #status-pane p .status-alert { color: #aa4444; }
