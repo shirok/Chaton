@@ -1,3 +1,8 @@
+2009-05-07  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-archiver (filter-entry): Adapted to the new data file
+	  format.
+
 2009-05-06  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.js (initViewFrame), chaton-viewer (make-skeleton): Put

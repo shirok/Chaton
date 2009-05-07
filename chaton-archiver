@@ -16,6 +16,7 @@
 (define *datadir* "@@server-data-dir@@data")
 
 (define verbose (make-parameter #f))
+(define notrunc (make-parameter #f)) ; suppress truncating current.dat
 
 (define (report fmt . args)
   (when (verbose) (apply format #t fmt args)))
@@ -28,7 +29,7 @@
 
 (define (filter-entry line out start end pred)
   (match (safe-read line)
-    [(nick (sec usec) text)
+    [(nick (sec usec) text . _)
      (when (pred (<= start sec end)) (display line out) (newline out))]
     [_ #f]))
 
@@ -61,7 +62,8 @@
         (unwind-protect
             (begin
               (sys-fcntl out F_SETLKW (make <sys-flock> :type F_WRLCK))
-              (copy-file current backup :if-exists :supersede) ; backup
+              (unless (notrunc)
+                (copy-file current backup :if-exists :supersede)) ; backup
               (make-directory* (sys-dirname today))
               (make-directory* (sys-dirname today+1))
               (make-directory* (sys-dirname today+2))
@@ -71,8 +73,9 @@
                     [else
                      (report "generating ~a\n" today)
                      (split-data-by-day current today date identity)
-                     (report "truncating ~a\n" current)
-                     (split-data-by-day current current date not)])
+                     (unless (notrunc)
+                       (report "truncating ~a\n" current)
+                       (split-data-by-day current current date not))])
               (mklink today+1)
               (mklink today+2))
           (sys-fcntl out F_SETLK (make <sys-flock> :type F_UNLCK))))
@@ -106,12 +109,24 @@
     [else (exit 1 "bad date: ~a" str)]))
 
 (define (run-archiver args)
-  (let-args (cdr args) ([q "q|quiet" #f] . args)
-    (parameterize ([verbose (not q)])
+  (let-args (cdr args) ([q "q|quiet"]
+                        [n "n|notrunc"]
+                        [else => (lambda (_) (usage))]
+                        . args)
+    (parameterize ([verbose (not q)]
+                   [notrunc n])
       (match args
         [()        (chore-for-the-day (date+ (beginning (current-date)) -1))]
         [(datestr) (chore-for-the-day (parse-date datestr))]))
     0))
+
+(define (usage)
+  (exit 1 #`"Usage: ,*program-name* [-q|quiet][-n|notrunc] [date] \
+   \nOptions:\
+   \n -q, --quiet    Operate quietly.\
+   \n -n, --notrunc  Do not truncate current.dat; only creates per-day\
+                     archive and links.  current.dat.bak isn't created\
+                     neither."))
 
 (select-module user)
 
