@@ -1,5 +1,11 @@
 2009-05-06  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.js (initViewFrame), chaton-viewer (make-skeleton): Put
+	  one trampoline of setTimeout before start fetching the content
+	  into iframe; Safari apparently doesn't like the JapaScript open
+	  Comet connection within the onLoad handler (the browser window
+	  stays "loading..." state.)
+
 	* chaton-viewer (emit-tail), chaton.js (fetchContent): Manage clients
 	  using clients ids.  If no status change, ping back to a client
 	  in much longer time (~5min) than before (~45sec) for less traffic.

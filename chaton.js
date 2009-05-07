@@ -167,7 +167,7 @@ function fetchContent(cid) {
 
 function fetchRetry(cid) {
     showStatus('Connection Lost.  Retrying...', 'status-alert');
-    setTimeout(function () { resumeFetch(cid); }, 10000);
+    setTimeout(function () { resumeFetch(cid); }, 5000 + irandom(10000));
 }
 
 function insertContent(json, cid) {
@@ -182,9 +182,11 @@ function insertContent(json, cid) {
         $('view-pane').update('');
     }
     $('view-pane').insert(json.text);
+    var pos_changed = (pos != json.pos);
     pos = json.pos;
     scrollToBottom();
-    fetchContent(json.cid);
+    setTimeout(function () { fetchContent(json.cid); },
+               pos_changed?irandom(1000):irandom(3000));
 }
 
 function resumeFetch(cid) {
@@ -214,3 +216,17 @@ function scrollToBottom() {
     var sp = $('status-pane');
     if (sp) sp.scrollTo();
 }
+
+function irandom(n) {
+    for (;;) {
+        var r = Math.floor(Math.random() * n);
+        if (r != n) return r;
+    }
+}
+
+// Initialization -------------------------------------
+function initViewFrame(cid) {
+    setTimeout(function () { fetchContent(cid); }, 1);
+}
+
+

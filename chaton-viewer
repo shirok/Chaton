@@ -306,7 +306,7 @@
               (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
                            :type "text/javascript"))
    (html:body
-    :onload (format "fetchContent(~d);" cid)
+    :onload (format "initViewFrame(~d);" cid)
     (html:div :id "view-pane")
     (html:div :id "status-pane" (html:p :id "status-line" "Connecting..."))
     )))
