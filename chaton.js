@@ -223,7 +223,19 @@ function scrollToBottom() {
 
 // Hint from toru@torus.jp
 function isViewingBottom() {
-    return window.pageYOffset > getDocumentHeight() - window.innerHeight - 20;
+    var d = document;
+    var de = d.documentElement;
+    var w = window;
+    var winh = (w.innerHeight
+                || (d.de && d.de.clientHeight) // IE strict
+                || d.body.clientHeight); // IE quirk
+    var winy = (typeof(w.pageYOffset) == 'number'
+                ? w.pageYOffset
+                : ((d.de && typeof(d.de.scrollTop) == 'number')
+                   ? d.de.scrollTop // IE strict
+                   : d.body.scrollTop)); // IE quirk
+    
+    return winy > getDocumentHeight() - winh - 20;
 }
 
 // http://james.padolsey.com/javascript/get-document-height-cross-browser/
