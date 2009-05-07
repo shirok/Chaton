@@ -157,7 +157,7 @@
              (mutex-unlock! *mutex*)
              (send-ping pos ncid (get-num-clients) csock)]
             [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15))) (loop)]
-            [(< time-started (- (sys-time) (+ 270 (random-integer 60))))
+            [(< time-started (- (sys-time) (+ 240 (random-integer 120))))
              (mutex-unlock! *mutex*)
              (send-ping pos ncid (get-num-clients) csock)] ; hard timeout
             [(and-let* ([ccnt2 (get-num-clients)]
