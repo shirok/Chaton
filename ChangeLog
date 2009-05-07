@@ -1,5 +1,9 @@
 2009-05-07  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.js: If the user is scrolling up to read past messages,
+	  do not scroll to botton when contents is added.  (Thanks to
+	  Toru Hisai for the hint).
+
 	* chaton-archiver (filter-entry): Adapted to the new data file
 	  format.
 

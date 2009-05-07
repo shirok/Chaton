@@ -149,6 +149,7 @@ function initMainBody() {
 
 var pos = 0;
 var seq = 0;
+var need_scroll = false;
 
 function fetchContent(cid) {
     seq = (seq+1)%100;
@@ -178,13 +179,16 @@ function insertContent(json, cid) {
     }
     showStatus('Connected ('+json.nc+' user'+(json.nc>1?'s':'')+' chatting)',
                'status-ok');
+    need_scroll = true;
     if (json.pos < pos || json.refresh) {
         $('view-pane').update('');
+    } else if (!isViewingBottom()) {
+        need_scroll = false;
     }
     $('view-pane').insert(json.text);
     var pos_changed = (pos != json.pos);
     pos = json.pos;
-    scrollToBottom();
+    if (need_scroll) scrollToBottom();
     setTimeout(function () { fetchContent(json.cid); },
                pos_changed?irandom(1000):irandom(3000));
 }
@@ -209,12 +213,27 @@ function checkImageSize(img) {
     }
     img.style.display = 'inline';
     img.removeClassName('hide-while-loading');
-    scrollToBottom();
+    if (need_scroll) scrollToBottom();
 }
 
 function scrollToBottom() {
     var sp = $('status-pane');
     if (sp) sp.scrollTo();
+}
+
+// Hint from toru@torus.jp
+function isViewingBottom() {
+    return window.pageYOffset > getDocumentHeight() - window.innerHeight - 20;
+}
+
+// http://james.padolsey.com/javascript/get-document-height-cross-browser/
+function getDocumentHeight() {
+    var d = document;
+    return Math.max(
+        Math.max(d.body.scrollHeight, d.documentElement.scrollHeight),
+        Math.max(d.body.offsetHeight, d.documentElement.offsetHeight),
+        Math.max(d.body.clientHeight, d.documentElement.clientHeight)
+    );
 }
 
 function irandom(n) {
