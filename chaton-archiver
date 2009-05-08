@@ -93,7 +93,8 @@
   (let ([es (filter-entry entries (cut = dis <>) #f)]
         [file (daily-log-path dis)])
     (cond [(null? es)]
-          [(file-exists? file)
+          [(and (file-exists? file)
+                (not (file-is-symlink? file)))
            (report "archive file ~a exists.  skipping.\n" file)]
           [else
            (report "generating ~a\n" file)
