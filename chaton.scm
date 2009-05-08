@@ -156,7 +156,8 @@
   (%with-chaton-lock F_RDLCK open-input-file close-input-port thunk))
 
 (define (chaton-with-exclusive-locking thunk)
-  (%with-chaton-lock F_WRLCK open-output-file close-output-port thunk))
+  (%with-chaton-lock F_WRLCK (cut open-output-file <> :if-exists :overwrite)
+                     close-output-port thunk))
 
 (define (ensure-lockfile)
   (unless (file-exists? *lockfile*)
@@ -164,16 +165,6 @@
       (lambda () (display "lockfile\n"))
       :if-does-not-exist :create
       :if-exists #f)))
-
-(define (with-read-locking file proc)
-  (call-with-input-file file
-    (lambda (in)
-      (cond [in
-             (sys-fcntl in F_SETLK (make <sys-flock> :type F_RDLCK))
-             (unwind-protect (proc in)
-               (sys-fcntl in F_SETLK (make <sys-flock> :type F_UNLCK)))]
-            [else (call-with-input-string "" proc)]))
-    :if-does-not-exist #f))
 
 ;; Read the source file from offset START, and returns a list of
 ;; lines and the updated offset that points the end of the source file.
