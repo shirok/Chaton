@@ -15,17 +15,28 @@
 (define *room-url* "@@httpd-url@@@@url-path@@")
 
 (define (main args)
-  (rxmatch-case (cgi-get-metavariable "PATH_INFO")
-    [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
-     (emit-archfile y m d)]
-    [#/^\/today/ ()
-     (let* ([today (current-date)]
-            [y (format "~4,'0d" (date-year today))]
-            [m (format "~2,'0d" (date-month today))]
-            [d (format "~2,'0d" (date-day today))])
-       (emit-archfile y m d))]
-    [else (emit-archfile "0" "0" "0")])
-  0)
+  (cgi-main (lambda (params)
+              (rxmatch-case (cgi-get-metavariable "PATH_INFO")
+                [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
+                 (emit-archfile y m d)]
+                [#/^\/today/ () (emit-redirect (current-date))]
+                [#/^\/yesterday/ () (emit-redirect (previous-date))]
+                [else (emit-archfile "0" "0" "0")]))))
+
+(define (previous-date)
+  (let1 c (current-date)
+    (modified-julian-day->date
+     ;; we take the noon of current date in order to avoid irregularity
+     ;; on DST boundary.
+     (- (date->modified-julian-day
+         (make-date 0 0 0 12 (date-day c) (date-month c) (date-year c)
+                    (date-zone-offset c)))
+        1))))
+
+(define (emit-redirect date)
+  (cgi-header
+   :location (format "@@httpd-url@@@@url-path@@a/~4,'0d/~2,'0d/~2,'0d"
+                     (date-year date) (date-month date) (date-day date))))
 
 (define (emit-archfile y m d)
   (let1 archfile (build-path *datadir* (format "~a/~a/~a.dat" y m d))
@@ -36,26 +47,25 @@
 
 (define (make-page content y m d)
   (let1 title (format "~a > Archives > ~a/~a/~a" *room* y m d)
-    (write-tree
-     `(,(cgi-header :content-type "text/html; charset=utf-8")
-       ,(html:html
-         (html:head
-          (html:title (html-escape-string title))
-          (html:link :href "@@httpd-url@@@@url-path@@chaton.css"
-                     :rel "Stylesheet" :type "text/css")
-          (html:script :src "@@prototype-url@@" :type "text/javascript")
-          (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
-                       :type "text/javascript"))
-         (html:body
-          (html:h1 :id "room-title"
-                   (html:img :class "room-icon" :src "@@icon-url@@"
-                             :align "absmiddle" :alt "")
-                   (html-escape-string title))
-          (html:div
-           :id "left-pane"
-           (navigate-bar y m d)
-           (html:div :id "archive-view" content)
-           (navigate-bar y m d))))))))
+    `(,(cgi-header :content-type "text/html; charset=utf-8")
+      ,(html:html
+        (html:head
+         (html:title (html-escape-string title))
+         (html:link :href "@@httpd-url@@@@url-path@@chaton.css"
+                    :rel "Stylesheet" :type "text/css")
+         (html:script :src "@@prototype-url@@" :type "text/javascript")
+         (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+                      :type "text/javascript"))
+        (html:body
+         (html:h1 :id "room-title"
+                  (html:img :class "room-icon" :src "@@icon-url@@"
+                            :align "absmiddle" :alt "")
+                  (html-escape-string title))
+         (html:div
+          :id "left-pane"
+          (navigate-bar y m d)
+          (html:div :id "archive-view" content)
+          (navigate-bar y m d)))))))
 
 (define (format-content archfile)
   (chaton-render-from-file archfile 0 #f))
