@@ -1,3 +1,10 @@
+2009-05-08  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-archiver: Rewrote to handle multiple past dates with
+	  sane DST handling, and also allow to leave some minimum amount
+	  of entries in current.dat instead of truncating it strictly
+	  to the today's entry.
+
 2009-05-07  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (chaton-with-shared-locking,chaton-with-exclusive-locking):

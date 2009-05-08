@@ -2,6 +2,8 @@
 ;; This script should be run periodically to truncate and
 ;; save the logs.
 
+(add-load-path "@@server-data-dir@@")
+
 (define-module chaton.archiver
   (use file.util)
   (use file.filter)
@@ -9,11 +11,23 @@
   (use gauche.fcntl)
   (use gauche.parameter)
   (use gauche.parseopt)
+  (use gauche.sequence)
   (use srfi-19)
+  (use chaton)
   (export run-archiver))
 (select-module chaton.archiver)
 
-(define *datadir* "@@server-data-dir@@data")
+(define-constant *datadir* "@@server-data-dir@@data")
+(define-constant *current.dat* (build-path *datadir* "current.dat"))
+(define-constant *current.dat.bak* (build-path *datadir* "current.dat.bak"))
+
+;; The base time zone offset (the offset when DST is not in effect)
+;; of the location we're running.
+(define-constant *tzoff*
+  (let1 now (current-date)
+    (- (date-zone-offset now)
+       (if (zero? (ref (sys-localtime (time-second (date->time-utc now)))'isdst))
+         0 3600))))
 
 (define verbose (make-parameter #f))
 (define notrunc (make-parameter #f)) ; suppress truncating current.dat
@@ -21,72 +35,118 @@
 (define (report fmt . args)
   (when (verbose) (apply format #t fmt args)))
 
-(define (split-data in out start end pred)
-  (file-filter (lambda (in out)
-                 (port-for-each (cut filter-entry <> out start end pred)
-                                (cut read-line in)))
-               :input in :output out :temporary-file #`",|out|.t"))
+;;;
+;;;  Fetch the data file
+;;;
 
-(define (filter-entry line out start end pred)
-  (match (safe-read line)
-    [(nick (sec usec) text . _)
-     (when (pred (<= start sec end)) (display line out) (newline out))]
-    [_ #f]))
-
-(define (split-data-by-day in out date pred)
-  (let1 start (time-second (date->time-utc date))
-    (split-data in out start (+ start 86399) pred)))
-
-(define (daily-log-path date)
-  (build-path *datadir* (format "~4,'0d/~2,'0d/~2,'0d.dat"
-                                (date-year date)
-                                (date-month date)
-                                (date-day date))))
+;; Read in the current.dat.  Returns a list of canonicalized entry.
+;;  <entry> : (<nickname> <timestamps> <text> <ipaddr>)
+;;  <timestamps> : (<seconds> <microseconds> <date-in-seconds>)
+;; Where <date-in-seconds> is seconds from UTC to the beginning of the
+;; day in localtime when the entry is created.
+;;
+(define (read-current current.dat)
+  (call-with-input-file current.dat
+    (lambda (in)
+      (if in
+        (reverse (port-fold canonicalize-entry '() (cut read-line in)))
+        '()))
+    :if-does-not-exist #f))
 
 (define (safe-read line)
-  (guard (e [(<read-error> e) ""]) (read-from-string line)))
+  (guard (e [(<read-error> e) e]) (read-from-string line)))
 
-;; Chore for the day
-;; (1) move the DATE's log into *datadir*/YYYY/MM/DD.dat
-;; (2) create a link of *datadir*/YYYY/MM/NEXTDAY.dat -> ../../current.dat
-;;     and *datadir*/YYYY/MM/NEXTNEXTDAY.dat -> ../../current.dat
-;; (3) truncate *datadir*/current.dat
-(define (chore-for-the-day date)
-  (let* ([current  (build-path *datadir* "current.dat")]
-         [backup   (build-path *datadir* "current.dat.bak")]
-         [today    (daily-log-path date)]
-         [today+1  (daily-log-path (date+ date 1))]
-         [today+2  (daily-log-path (date+ date 2))])
-    (call-with-output-file current
-      (lambda (out)
-        (unwind-protect
-            (begin
-              (sys-fcntl out F_SETLKW (make <sys-flock> :type F_WRLCK))
-              (unless (notrunc)
-                (copy-file current backup :if-exists :supersede)) ; backup
-              (make-directory* (sys-dirname today))
-              (make-directory* (sys-dirname today+1))
-              (make-directory* (sys-dirname today+2))
-              (cond [(and (file-exists? today)
-                          (not (file-is-symlink? today)))
-                     (report "archive file ~a exists.  skipping.\n" today)]
-                    [else
-                     (report "generating ~a\n" today)
-                     (split-data-by-day current today date identity)
-                     (unless (notrunc)
-                       (report "truncating ~a\n" current)
-                       (split-data-by-day current current date not))])
-              (mklink today+1)
-              (mklink today+2))
-          (sys-fcntl out F_SETLK (make <sys-flock> :type F_UNLCK))))
-      :if-exists :append :if-does-not-exist #f)))
+(define (canonicalize-entry line entries)
+  (match (safe-read line)
+    [(nick (secs usecs) text . opt)
+     `((,nick (,secs ,usecs ,(date-in-seconds secs)) ,text
+              ,(if (pair? opt) (car opt) "0.0.0.0"))
+       ,@entries)]
+    [(? <read-error> x) (warn "unreadable entry: ~a" (ref x'message))]
+    [other (warn "unrecognized entry: ~s" other)]))
 
-(define (beginning date)
-  (make-date 0 0 0 0 (date-day date) (date-month date) (date-year date)
-             (date-zone-offset date)))
+;; extract DIS part of canonicalized entry
+(define (entry-dis entry) (match entry [(_ (_ _ dis) _ _) dis]))
 
-(define (date+ date days)
-  (julian-day->date (+ (date->julian-day date) days)))
+;; Retruns a list of dates (date-in-seconds) in entries.
+(define (existing-diss entries)
+  (let1 diss '()
+    (dolist (e entries)
+      (let1 dis (entry-dis e)
+        (unless (memv dis diss) (push! diss dis))))
+    (sort diss)))
+
+;;;
+;;;  Write entries
+;;;
+
+(define (write-entries entries file)
+  (let1 tmp #`",|file|.tmp"
+    (with-output-to-file tmp
+      (lambda ()
+        (dolist (e entries)
+          (match-let1 (nick (s u _) text ipaddr) e
+            (write `(,nick (,s ,u) ,text ,ipaddr)) (newline)))))
+    (sys-rename tmp file)))
+
+(define (write-daily-entry entries dis)
+  (let ([es (filter-entry entries (cut = dis <>) #f)]
+        [file (daily-log-path dis)])
+    (cond [(null? es)]
+          [(file-exists? file)
+           (report "archive file ~a exists.  skipping.\n" file)]
+          [else
+           (report "generating ~a\n" file)
+           (make-directory* (sys-dirname file))
+           (write-entries es file)])))
+
+(define (truncate-current entries dis)
+  (let1 tmp #`",|*current.dat*|.tmp"
+    (write-entries (filter-entry entries (cut <= dis <>) 30) tmp)
+    (cond [(file-equal? tmp *current.dat*)
+           (report "~a unchanged.\n" *current.dat*) (sys-unlink tmp)]
+          [else
+           (report "truncating ~a\n" *current.dat*)
+           (sys-rename *current.dat* *current.dat.bak*)
+           (sys-rename tmp *current.dat*)])))
+
+(define (daily-log-path dis)
+  (let1 tm (sys-localtime dis)
+    (build-path *datadir* (format "~4,'0d/~2,'0d/~2,'0d.dat"
+                                  (+ (ref tm'year) 1900)
+                                  (+ (ref tm'mon) 1)
+                                  (ref tm'mday)))))
+
+(define (filter-entry entries check-date min-entries)
+  (let* ([num-entries (length entries)]
+         [erase-limit (if (and min-entries (>= num-entries min-entries))
+                        (- num-entries min-entries)
+                        +inf.0)])
+    (reverse (values-ref
+              (fold2 (lambda (e r cnt)
+                       (values (if (or (>= cnt erase-limit)
+                                       (check-date (entry-dis e)))
+                                 (cons e r)
+                                 r)
+                               (+ cnt 1)))
+                     '() 1 entries)
+              0))))
+
+;;;
+;;;  Chore for the day
+;;;
+
+(define (chore-for-the-day today-dis)
+  (chaton-with-exclusive-locking
+   (lambda ()
+     (let* ([entries (read-current *current.dat*)]
+            [diss    (existing-diss entries)])
+       (dolist [dis diss]
+         (when (< dis today-dis)
+           (write-daily-entry entries dis)))
+       (truncate-current entries today-dis)
+       (mklink (daily-log-path today-dis))
+       (mklink (daily-log-path (dis+ today-dis 1)))))))
 
 (define (mklink daily-file)
   (cond [(file-exists? daily-file)
@@ -95,6 +155,28 @@
          (report "creating link ~a\n" daily-file)
          (sys-symlink "../../current.dat" daily-file)]))
 
+(define (run-archiver args)
+  (let-args (cdr args) ([q "q|quiet"]
+                        [n "n|notrunc"]
+                        [else => (lambda (_) (usage (car args)))]
+                        . args)
+    (parameterize ([verbose (not q)]
+                   [notrunc n])
+      (match args
+        [()        (chore-for-the-day (current-dis))]
+        [(datestr) (chore-for-the-day (parse-date datestr))]))
+    0))
+
+(define (usage argv0)
+  (exit 1 #`"Usage: ,argv0 [-q|quiet] [date] \
+   \nOptions:\
+   \n -q, --quiet    Operate quietly."))
+
+;;;
+;;; Date utilities
+;;;
+
+;; Returns unix time of the beginning of the day.
 (define (parse-date str)
   (rxmatch-case str
     [#/^(\d\d\d\d)\/(\d{1,2})\/(\d{1,2})$/ (_ y m d)
@@ -105,33 +187,49 @@
                     (<= 1 mm 12)
                     (<= 1 dd 31))
          (exit 1 "bad date: ~a" str))
-       (make-date 0 0 0 0 dd mm yy (date-zone-offset (current-date))))]
+       (make-dis yy mm dd))]
     [else (exit 1 "bad date: ~a" str)]))
 
-(define (run-archiver args)
-  (let-args (cdr args) ([q "q|quiet"]
-                        [n "n|notrunc"]
-                        [else => (lambda (_) (usage))]
-                        . args)
-    (parameterize ([verbose (not q)]
-                   [notrunc n])
-      (match args
-        [()        (chore-for-the-day (date+ (beginning (current-date)) -1))]
-        [(datestr) (chore-for-the-day (parse-date datestr))]))
-    0))
+;; Returns unix time of the beginning of the day when SECONDS is.
+;; TZOFF should be a timezone offset _without_DST_ in the location where
+;; this program is running.
+;; Rely on sys-localtime to handle timezone properly (srfi-19 always
+;; use the timezone of the current time, which leads incorrect behavior
+;; if we archiving across the boundary of DST change).
+(define (date-in-seconds seconds)
+  (let1 tm (sys-localtime seconds)
+    (time-second
+     (date->time-utc
+      (make-date 0 0 0 0 (ref tm 'mday) (+ (ref tm 'mon) 1)
+                 (+ (ref tm 'year) 1900)
+                 (if (= (ref tm 'isdst) 0) *tzoff* (+ *tzoff* 3600)))))))
 
-(define (usage)
-  (exit 1 #`"Usage: ,*program-name* [-q|quiet][-n|notrunc] [date] \
-   \nOptions:\
-   \n -q, --quiet    Operate quietly.\
-   \n -n, --notrunc  Do not truncate current.dat; only creates per-day\
-                     archive and links.  current.dat.bak isn't created\
-                     neither."))
+;; Returns unix time of the beginning of the day Y/M/D.
+;; If we use midnight, it can be off one-day if the date
+;; is on the DST boundary; so we use noon and then truncate it
+;; by date-in-seconds.
+(define (make-dis y m d)
+  (date-in-seconds
+   (time-second
+    (date->time-utc (make-date 0 0 0 12 d m y *tzoff*)))))
 
-(select-module user)
+(define (current-dis) (date-in-seconds (sys-time)))
+
+;; Add DAYS to the date represented in DIS.
+;; We assume DAYS is a few days, so we only cross the DST boundary
+;; at most once.
+(define (dis+ dis days)
+  (let ([isdst0 (ref (sys-localtime dis)'isdst)]
+        [isdst1 (ref (sys-localtime (+ dis (* days 86400)))'isdst)])
+    (cond
+     [(= isdst0 isdst1) (+ dis 86400)]
+     [(< isdst0 isdst1) (+ dis (- 86400 3600))] ;entering DST
+     [else              (+ dis (+ 86400 3600))] ;leaving DST
+     )))
 
 ;;;===================================================================
 
+(select-module user)
 (import chaton.archiver)
 (define main run-archiver)
 
