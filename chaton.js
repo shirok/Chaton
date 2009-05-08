@@ -227,14 +227,18 @@ function isViewingBottom() {
     var de = d.documentElement;
     var w = window;
     var winh = (w.innerHeight
-                || (d.de && d.de.clientHeight) // IE strict
-                || d.body.clientHeight); // IE quirk
+                || d.body.clientHeight       // IE quirk
+                || (de && de.clientHeight)   // IE strict
+                || 0);
     var winy = (typeof(w.pageYOffset) == 'number'
                 ? w.pageYOffset
-                : ((d.de && typeof(d.de.scrollTop) == 'number')
-                   ? d.de.scrollTop // IE strict
-                   : d.body.scrollTop)); // IE quirk
-    
+                : (typeof(d.body.scrollTop) == 'number'
+                   ? d.body.scrollTop // IE quirk
+                   : ((de && typeof(de.scrollTop) == 'number')
+                      ? de.clientHeight // IE strict
+                      : 0)));
+
+    if (winh == 0 && winy == 0) return true;
     return winy > getDocumentHeight() - winh - 20;
 }
 
