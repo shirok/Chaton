@@ -1,5 +1,11 @@
 2009-05-07  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.scm (chaton-with-shared-locking,chaton-with-exclusive-locking):
+	  Put locking primitives here.
+	* chaton-poster (poster-main): Adapted to use the locking primitive
+	  in chaton.scm.  Wrapped main code with define-module for
+	  testing.
+
 	* chaton.js: If the user is scrolling up to read past messages,
 	  do not scroll to botton when contents is added.  (Thanks to
 	  Toru Hisai for the hint).

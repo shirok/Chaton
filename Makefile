@@ -16,4 +16,5 @@ check:
 	@cat test.record
 
 clean:
-	rm -rf test.record *.log *~ tests/data.o tests/*~
+	cd tests; $(MAKE) clean
+	rm -rf test.record *.log *~

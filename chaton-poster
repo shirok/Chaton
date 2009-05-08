@@ -1,12 +1,17 @@
 #!/usr/bin/env gosh
-(use www.cgi)
-(use gauche.fcntl)
-(use srfi-13)
-(use file.util)
-(use file.filter)
-(use util.list)
-(use text.html-lite)
-(use text.tree)
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.poster
+  (use www.cgi)
+  (use srfi-13)
+  (use file.util)
+  (use util.list)
+  (use text.html-lite)
+  (use text.tree)
+  (use chaton)
+  (export poster-main))
+(select-module chaton.poster)
 
 (define *limit* 2048)
 (define *datadir* (or (cgi-get-metavariable "CHATON_DATADIR")
@@ -17,14 +22,17 @@
                       "@@server-htdocs-dir@@"))
 (define *seqfile*  (build-path *docdir* "var/seq"))
 
-(define (main args)
+(define (poster-main args)
   (cgi-main (lambda (params)
               (let ([nick (cgi-get-parameter "nick" params :default #f)]
                     [text (cgi-get-parameter "text" params :default #f)])
-                (make-directory* *datadir*)
-                (call-with-output-file *curfile*
-                  (cut update <> (string-trim-both nick) (string-trim-both text))
-                  :if-exists :append)
+                (make-directory* *datadir*) ;ensure
+                (chaton-with-exclusive-locking
+                 (lambda ()
+                   (call-with-output-file *curfile*
+                     (cut update <>
+                          (string-trim-both nick) (string-trim-both text))
+                     :if-exists :append)))
                 (emit-reply))))
   0)
 
@@ -33,11 +41,8 @@
 
 (define (update out nick text)
   (unless (or (string-null? nick) (string-null? text))
-    (unwind-protect
-        (begin (sys-fcntl out F_SETLKW (make <sys-flock> :type F_WRLCK))
-               (append-entry out nick text)
-               (increment-sequence))
-      (sys-fcntl out F_SETLK (make <sys-flock> :type F_UNLCK)))))
+    (append-entry out nick text)
+    (increment-sequence)))
 
 (define (append-entry out nick text)
   (port-seek out 0 SEEK_END)
@@ -61,7 +66,13 @@
     (make-directory* (sys-dirname *seqfile*))
     (with-output-to-file tmpfile (cut write (+ cnt 1)))
     (sys-rename tmpfile *seqfile*)))
-        
+
+;;;===================================================================
+(select-module user)
+
+(import chaton.poster)
+(define main poster-main)
+
 ;; Local variables:
 ;; mode: scheme
 ;; end:

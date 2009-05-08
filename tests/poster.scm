@@ -6,13 +6,19 @@
 
 (test-start "poster")
 
+(add-load-path "..")
+(load "../chaton-poster")
+(set! main #f)                          ;avoid exection of script main
+(test-module 'chaton.poster)
+
 (when (file-exists? *testdatadir*)
   (remove-directory* *testdatadir*))
 
 (define (post nick text)
   (run-cgi-script->string 
    "../chaton-poster"
-   :environment `(("CHATON_DATADIR" . ,*testdatadir*)
+   :environment `(("GAUCHE_LOAD_PATH" . "..")
+                  ("CHATON_DATADIR" . ,*testdatadir*)
                   ("CHATON_DOCDIR"  . ,*testdatadir*))
    :parameters `((nick . ,nick) (text . ,text))))
 

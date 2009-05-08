@@ -11,7 +11,9 @@
   (use gauche.fcntl)
   (use gauche.sequence)
   (export chaton-render
-          chaton-render-from-file))
+          chaton-render-from-file
+          chaton-with-shared-locking
+          chaton-with-exclusive-locking))
 (select-module chaton)
 
 (define *archivepath* "@@httpd-url@@@@url-path@@a/")
@@ -137,6 +139,32 @@
 ;;;  Reading datafile
 ;;;
 
+(define *lockfile* "@@server-data-dir@@lock")
+
+(define (%with-chaton-lock locktype opener closer thunk)
+  (ensure-lockfile)
+  (let1 p #f
+    (unwind-protect
+        (begin (set! p (opener *lockfile*))
+               (sys-fcntl p F_SETLK (make <sys-flock> :type locktype))
+               (thunk))
+      (when p
+        (sys-fcntl p F_SETLK (make <sys-flock> :type F_UNLCK))
+        (closer p)))))
+
+(define (chaton-with-shared-locking thunk)
+  (%with-chaton-lock F_RDLCK open-input-file close-input-port thunk))
+
+(define (chaton-with-exclusive-locking thunk)
+  (%with-chaton-lock F_WRLCK open-output-file close-output-port thunk))
+
+(define (ensure-lockfile)
+  (unless (file-exists? *lockfile*)
+    (with-output-to-file *lockfile*
+      (lambda () (display "lockfile\n"))
+      :if-does-not-exist :create
+      :if-exists #f)))
+
 (define (with-read-locking file proc)
   (call-with-input-file file
     (lambda (in)
@@ -150,11 +178,16 @@
 ;; Read the source file from offset START, and returns a list of
 ;; lines and the updated offset that points the end of the source file.
 (define (read-diff source start)
-  (with-read-locking source
-    (lambda (in)
-      (port-seek in start)
-      (let1 tx (port->string-list in)
-        (values tx (port-tell in))))))
+  (chaton-with-shared-locking
+   (lambda ()
+     (call-with-input-file source
+       (lambda (in)
+         (cond [in
+                (port-seek in start)
+                (let1 tx (port->string-list in)
+                  (values tx (port-tell in)))]
+               [else (values "" 0)]))
+       :if-does-not-exist #f))))
 
 (define (safe-read line)
   (guard (e [(<read-error> e) #f]) (read-from-string line)))
