@@ -1,3 +1,8 @@
+2009-05-09  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer (emit-skeleton): Adds HTTP response header for the
+	  initial skeleton.
+
 2009-05-08  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-poster (increment-sequence): Saves post sequence number under

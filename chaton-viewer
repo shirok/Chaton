@@ -130,8 +130,13 @@
 ;; instead of letting client to fetch it immediately after this reply.
 ;; A possible option for future development.
 (define (emit-skeleton out)
-  (write-tree (make-skeleton (new-client-cid)) out)
-  (flush out))
+  (let1 s (tree->string (make-skeleton (new-client-cid)))
+    (write-tree `("HTTP/1.1 200 OK\r\n\
+                   Content-type: text/html; chatset=utf-8\r\n\
+                   Content-length: ",(string-size s)"\r\n\r\n"
+                   ,s)
+                out)
+    (flush out)))
 
 ;; Let the client wait until one of the following condition is met:
 ;;
