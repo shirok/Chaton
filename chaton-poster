@@ -17,10 +17,12 @@
 (define *datadir* (or (cgi-get-metavariable "CHATON_DATADIR")
                       "@@server-data-dir@@data"))
 (define *curfile*  (build-path *datadir* "current.dat"))
+(define *seqfile*  (build-path *datadir* "sequence"))
+(define *lastpost* (build-path *datadir* "last-post"))
 
 (define *docdir*  (or (cgi-get-metavariable "CHATON_DOCDIR")
                       "@@server-htdocs-dir@@"))
-(define *seqfile*  (build-path *docdir* "var/seq"))
+(define *seqfile-old*  (build-path *docdir* "var/seq"))
 
 (define (poster-main args)
   (cgi-main (lambda (params)
@@ -42,7 +44,8 @@
 (define (update out nick text)
   (unless (or (string-null? nick) (string-null? text))
     (append-entry out nick text)
-    (increment-sequence)))
+    (increment-sequence)
+    (record-last-post-timestamp)))
 
 (define (append-entry out nick text)
   (port-seek out 0 SEEK_END)
@@ -56,16 +59,27 @@
               ,(if (> (string-length s) *limit*) (string-take s *limit*) s)
               ,(cgi-get-metavariable "REMOTE_ADDR")))))
 
-;; seqfile is only touched while current.txt is locked, so we don't
-;; bother to lock it.
 (define (increment-sequence)
-  (let ([cnt (if (file-exists? *seqfile*)
-               (x->integer (file->string *seqfile*))
-               0)]
-        [tmpfile #`",|*seqfile*|.tmp"])
+  ;; NB: for the backward compatibility, we store the sequence number under
+  ;; $DOCDIR (old location) as well as $(DATADIR).  Don't forget to drop
+  ;; the old stuff after some time.
+  (let ([cnt (x->integer (or (file->string *seqfile* :if-does-not-exist #f)
+                             (file->string *seqfile-old* :if-does-not-exist #f)))]
+        [tmpfile     #`",|*seqfile*|.tmp"]
+        [tmpfile-old #`",|*seqfile-old*|.tmp"])
     (make-directory* (sys-dirname *seqfile*))
     (with-output-to-file tmpfile (cut write (+ cnt 1)))
-    (sys-rename tmpfile *seqfile*)))
+    (sys-rename tmpfile *seqfile*)
+    (make-directory* (sys-dirname *seqfile-old*))
+    (with-output-to-file tmpfile-old (cut write (+ cnt 1)))
+    (sys-rename tmpfile-old *seqfile-old*)))
+
+(define (record-last-post-timestamp)
+  ;; NB: Theoretically the value written may differ from the entry's timestamp,
+  ;; but we don't need precision here.
+  (let1 tmp #`",|*lastpost*|.tmp"
+    (with-output-to-file tmp (cut write (sys-time)))
+    (sys-rename tmp *lastpost*)))
 
 ;;;===================================================================
 (select-module user)

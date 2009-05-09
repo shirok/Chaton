@@ -1,5 +1,11 @@
 2009-05-08  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-poster (increment-sequence): Saves post sequence number under
+	  $DATADIR/data/sequence instead of $DOCDIR/var/seq.  The latter is
+	  supported for a while until client side javascript is totally
+	  updated.
+	  (record-last-post-timestamp): Saves it to $DATADIR/data/last-post.
+
 	* chaton-viewer (client-tracker): Records the current number of
 	  chatters under $DATADIR/data/num-chatters.
 
