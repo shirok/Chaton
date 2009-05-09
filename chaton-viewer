@@ -30,6 +30,8 @@
 (define-constant VIEWER_FILE "@@server-data-dir@@data/current.dat")
 (define-constant VIEWER_LOG "@@server-data-dir@@logs/comet.log")
 
+(define-constant NCHATTERS_LOG "@@server-data-dir@@data/num-chatters")
+
 ;; Global data shared between threads.  Accessor should lock *mutex* (ugh!).
 (define *mutex* (make-mutex))
 (define *cv* (make-condition-variable))
@@ -176,19 +178,18 @@
 
 (define (send-diff start end text cid csock)
   (log-child csock "sending ~s-~s" start end)
-  (client-replied csock cid)
-  (send-json (format "{'pos':~s,'nc':~s,'ver':~s,'cid':~s,'text':~s}"
-                     end (get-num-clients) "@@version@@" cid text)
-             csock))
+  (send-reply (make-json-packet cid end (get-num-clients) text) cid csock))
 
 (define (send-ping pos cid ccnt csock)
   (log-child csock "ping back ~a" cid)
-  (client-replied csock cid)
-  (send-json (format "{'pos':~s,'nc':~s,'ver':~s,'cid':~s,'text':''}"
-                     pos ccnt "@@version@@" cid)
-             csock))
+  (send-reply (make-json-packet cid pos ccnt "") cid csock))
 
-(define (send-json json csock) 
+(define (make-json-packet cid pos ccnt text)
+  (format "{'pos':~s,'nc':~s,'ver':~s,'cid':~s,'text':~s}"
+          pos ccnt "@@version@@" cid text))
+
+(define (send-reply json cid csock) 
+  (client-replied csock cid)
   (let1 out (socket-output-port csock)
     (format out "HTTP/1.1 200 OK\r\n\
 	         Content-type: application/json; charset=utf-8\r\n\
@@ -277,22 +278,21 @@
                (hash-table-delete! *clnt-table* k)))))))))
 
 (define (client-tracker)
-  (sys-sleep 1)
-  (guard (e [else (log-format "tracker: ~a" (ref e'message))])
-    (client-sweep!))
-  (client-tracker))
+  (let loop ((nc (get-num-clients)))
+    (sys-sleep 1)
+    (guard (e [else (log-format "tracker: ~a" (ref e'message))])
+      (client-sweep!))
+    (let1 nnc (get-num-clients)
+      (unless (= nc nnc) (record-num-chatters nnc))
+      (loop nnc))))
 
 (define (spawn-client-tracker)
   (thread-start! (make-thread client-tracker)))
 
-(define client-counter
-  (let ([n 0] [mutex (make-mutex)])
-    (lambda (msg)
-      (case msg
-        [(inc)  (with-locking-mutex mutex (lambda () (inc! n) n))]
-        [(dec)  (with-locking-mutex mutex (lambda () (dec! n) n))]
-        [(get)  n]
-        [(reset)(with-locking-mutex mutex (lambda () (set! n 0)))]))))
+(define (record-num-chatters nc)
+  (let1 tmp #`",|NCHATTERS_LOG|.tmp"
+    (with-output-to-file tmp (cut write nc))
+    (sys-rename tmp NCHATTERS_LOG)))
 
 ;;;
 ;;;   Content to distribute

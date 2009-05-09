@@ -1,5 +1,8 @@
 2009-05-08  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-viewer (client-tracker): Records the current number of
+	  chatters under $DATADIR/data/num-chatters.
+
 	* chaton-browser (main): 'a/yesterday' link to redirect to
 	  the yesterday's archive.
 	* chaton.html: "Read archive" link points to a/yesterday.
