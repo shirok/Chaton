@@ -42,7 +42,7 @@
       "</a>"
       "<span class=\"chaton-room-name\">"
       "<a href=\"@@httpd-url@@@@url-path@@\" title=\"",tip"\">"
-      ,(html-escape-string "Chaton @@room-name@@")"</a>"
+      ,(html-escape-string "@@room-name@@")"</a>"
       "</span>"
       "<span class=\"chaton-last-update\">",last-update"</span>"
       "<span class=\"chaton-chatters\">"
