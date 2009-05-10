@@ -462,8 +462,8 @@
   0)
 
 (define (usage)
-  (exit 1 #`"Usage: \
-   \n  @@comet-script@@ [-p port][-f file][-l log] \
+  (exit 1 #`"Usage:\
+   \n  @@comet-script@@ [-p port][-f file][-l log]\
    \n  @@comet-script@@ -k|--kill\
    \n  @@comet-script@@ -c|--check [-p port]\
    \n  @@comet-script@@ -r|--restart [-p port][-f file][-l log]\
@@ -471,15 +471,15 @@
    \n  The first form starts the Chaton viewer server.  The following\
    \n  options are accepted, though you shouldn't need to change the\
    \n  default values (showin in []) unless you're doing some experiment.\
-   \n   -p, --port PORT   Specify the server port number.  [,*port*]\
+   \n   -p, --port PORT   Specify the server port number.  [,+viewer-port+]\
    \n   -f, --file FILE   Specify the file the viewer monitors.\
-   \n           [,*file*]\
+   \n           [,+viewer-file+]\
    \n   -l, --log LOGFILE Specify the log file.  '-' for stdout.\
-   \n           [,*logfile*]\
+   \n           [,+viewer-log+]\
    \n  The second form (-k or --kill) shuts down the existing viewer.\
    \n  The third form (-c or --check) checks if the server is running.\
    \n  The fourth form (-r or --restart) restarts the running viewer if there's\
-   \n  one, or starts a new viewer, in the background process."))
+   \n  one, or starts a new viewer, in the background process.\n"))
 
 ;; Local variables:
 ;; mode: scheme
