@@ -81,13 +81,12 @@
 ;;;
 
 (define (write-entries entries file)
-  (let1 tmp #`",|file|.tmp"
-    (with-output-to-file tmp
-      (lambda ()
-        (dolist (e entries)
-          (match-let1 (nick (s u _) text ipaddr) e
-            (write `(,nick (,s ,u) ,text ,ipaddr)) (newline)))))
-    (sys-rename tmp file)))
+  (with-output-to-file file
+    (lambda ()
+      (dolist (e entries)
+        (match-let1 (nick (s u _) text ipaddr) e
+          (write `(,nick (,s ,u) ,text ,ipaddr)) (newline))))
+    :atomic #t))
 
 (define (write-daily-entry entries dis)
   (let ([es (filter-entry entries (cut = dis <>) #f)]
