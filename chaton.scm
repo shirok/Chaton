@@ -19,8 +19,9 @@
           +current-file+
           +sequence-file+
           +last-post-file+
+          +num-chatters-file+
 
-          +docdir+
+          +docdir+ +status.js+ +status.scm+
           with-output-to-file))
 (select-module chaton)
 
@@ -32,9 +33,12 @@
 (define-constant +current-file+ (build-path +datadir+ "current.dat"))
 (define-constant +sequence-file+ (build-path +datadir+ "sequence"))
 (define-constant +last-post-file+ (build-path +datadir+ "last-post"))
+(define-constant +num-chatters-file+ (build-path +datadir+ "num-chatters"))
 
 (define-constant +docdir+ (or (sys-getenv "CHATON_DOCDIR")
                               "@@server-htdocs-dir@@"))
+(define-constant +status.js+ (build-path +docdir+ "var/status.js"))
+(define-constant +status.scm+ (build-path +docdir+ "var/status.scm"))
 
 ;;;
 ;;;  Entries

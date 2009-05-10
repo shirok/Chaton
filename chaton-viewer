@@ -19,18 +19,15 @@
   (use util.match)
   (use util.list)
   (use www.cgi)
-  (export VIEWER_PORT VIEWER_FILE VIEWER_LOG
+  (export +viewer-port+ +viewer-file+ +viewer-log+
           run-viewer-server restart-viewer-server shutdown-viewer-server
           check-viewer-server)
   )
 (select-module chaton.viewer)
 
-(define-constant VIEWER_SCRIPT "@@server-bin-dir@@@@comet-script@@")
-(define-constant VIEWER_PORT (x->integer "@@comet-port@@"))
-(define-constant VIEWER_FILE "@@server-data-dir@@data/current.dat")
-(define-constant VIEWER_LOG "@@server-data-dir@@logs/comet.log")
-
-(define-constant NCHATTERS_LOG "@@server-data-dir@@data/num-chatters")
+(define-constant +viewer-port+ (x->integer "@@comet-port@@"))
+(define-constant +viewer-file+ "@@server-data-dir@@data/current.dat")
+(define-constant +viewer-log+ "@@server-data-dir@@logs/comet.log")
 
 ;; Global data shared between threads.  Accessor should lock *mutex* (ugh!).
 (define *mutex* (make-mutex))
@@ -47,6 +44,7 @@
   (initialize port source)
   (let1 server-sock (make-server-socket 'inet port :reuse-addr? #t)
     (spawn-monitor source)
+    (spawn-status)
     (spawn-client-tracker)
     (guard (e [else
                (log-format "main loop error: ~a" (ref e'message))
@@ -96,6 +94,45 @@
         (set! *size* new-pos)))))
 
 ;;;
+;;;   Status thread
+;;;
+
+(define (spawn-status)
+  (thread-start! (make-thread do-status)))
+
+(define (do-status)
+  (guard (e [else (log-format "status error: ~s" (ref e'message))])
+    (let loop ((mtimes #f))
+      (let1 mtimes1
+          (map file-mtime `(,+sequence-file+ ,+last-post-file+ ,+num-chatters-file+))
+        (unless (equal? mtimes mtimes1) (write-statuses))
+        (sys-sleep 10)
+        (loop mtimes1))))
+  (do-status))
+
+(define (write-statuses)
+  (let ([s (x->integer (file->string +sequence-file+ :if-does-not-exist #f))]
+        [l (x->integer (file->string +last-post-file+ :if-does-not-exist #f))]
+        [n (x->integer (file->string +num-chatters-file+ :if-does-not-exist #f))])
+    (make-directory* (sys-dirname +status.js+)) ;ensure dir
+    (write-status-js s l n)
+    (write-status-scm s l n)))
+
+(define (write-status-js s l n)
+  (with-output-to-file +status.js+
+    (lambda () 
+      (format #t "{'last-post':~s;'num-chatters':~s;'post-sequence':~s}"
+              l n s))
+    :atomic #t))
+
+(define (write-status-scm s l n)
+  (with-output-to-file +status.scm+
+    (lambda ()
+      (for-each (lambda (x) (write x) (newline))
+                `((last-post ,l) (num-chatters ,n) (post-sequence ,s))))
+    :atomic #t))
+
+;;;
 ;;;   Comet threads
 ;;;
 
@@ -132,7 +169,7 @@
 (define (emit-skeleton out)
   (let1 s (tree->string (make-skeleton (new-client-cid)))
     (write-tree `("HTTP/1.1 200 OK\r\n\
-                   Content-type: text/html; chatset=utf-8\r\n\
+                   Content-type: text/html; charset=utf-8\r\n\
                    Content-length: ",(string-size s)"\r\n\r\n"
                    ,s)
                 out)
@@ -288,16 +325,12 @@
     (guard (e [else (log-format "tracker: ~a" (ref e'message))])
       (client-sweep!))
     (let1 nnc (get-num-clients)
-      (unless (= nc nnc) (record-num-chatters nnc))
+      (unless (= nc nnc)
+        (with-output-to-file +num-chatters-file+ (cut write nc) :atomic #t))
       (loop nnc))))
 
 (define (spawn-client-tracker)
   (thread-start! (make-thread client-tracker)))
-
-(define (record-num-chatters nc)
-  (let1 tmp #`",|NCHATTERS_LOG|.tmp"
-    (with-output-to-file tmp (cut write nc))
-    (sys-rename tmp NCHATTERS_LOG)))
 
 ;;;
 ;;;   Content to distribute
@@ -412,9 +445,9 @@
 (import chaton.viewer)
 
 (define (main args)
-  (let-args (cdr args) ([port "p|port=i" VIEWER_PORT]
-                        [file "f|file=s" VIEWER_FILE]
-                        [log  "l|log=s"  VIEWER_LOG]
+  (let-args (cdr args) ([port "p|port=i" +viewer-port+]
+                        [file "f|file=s" +viewer-file+]
+                        [log  "l|log=s"  +viewer-log+]
                         [kill "k|kill"]
                         [check "c|check"]
                         [restart "r|restart"]
