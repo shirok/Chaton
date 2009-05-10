@@ -9,7 +9,7 @@
 	* chaton-viewer (emit-skeleton): Adds HTTP response header for the
 	  initial skeleton.
 	  (spawn-status): Writes out $(DOCDIR)/var/status.{js,scm} periodically
-	  for those who wants to monitor room status (this obsolets the old
+	  for those who wants to monitor room status (this obsoletes the old
 	  var/seq file.)
 
 2009-05-08  Shiro Kawai  <shiro@acm.org>
