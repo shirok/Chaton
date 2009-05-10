@@ -2,17 +2,19 @@ body { margin: 0; padding: 0; }
 #room-title { margin: 10pt 10pt -20pt 10pt; 
               font-size: 150%; font-family: Sans, Ariel, Helvetica; }
 
-#right-pane { float: right; width: 200px; }
+#right-pane { display: inline; float: right; width: 200px; }
 #right-pane > div { padding-right: 10px; }
 #right-pane .chaton-logo { text-align: right; }
 #right-pane .room-description { padding-top: 15px; font-size: 90%; }
 #right-pane .room-links { padding-top: 15px; text-align: right; }
 
-#left-pane  { margin: 10pt; padding: 5pt; }
-#left-pane #navigation { width:75%; text-align: right; }
+#left-pane  { margin: 10px 210px 10px 10px; padding: 10pt; height: 100% }
+#left-pane #navigation { text-align: right; }
 #view-pane { padding: 3px; border-width: 0pt; }
+#view-frame-container { width: 100%; height: 75% }
+#view-frame { width: 100%; height: 100%; }
 
-#post-form table { width: 75%; }
+#post-form table { padding-top: 20px; width: 100%; }
 #post-form table #post-text { width: 100%; }
 
 .timestamp { float: right; color: #bbbbbb; font-size: 80%; }
@@ -27,8 +29,8 @@ body { margin: 0; padding: 0; }
 #status-pane p .status-alert { color: #aa4444; }
 #status-pane p .status-ok    { color: #44aa44; }
 
-#archive-view { width: 75%; padding: 3px; border: inset 2px gray; }
-.archive-navigate { width: 75%; border-width: 0pt; }
+#archive-view { padding: 3px; border: inset 2px gray; }
+.archive-navigate { border-width: 0pt; }
 .archive-navigate table { width: 100%; border: none; }
 .archive-navigate .to-prev { text-align: left; }
 .archive-navigate .to-room { text-align: center; }

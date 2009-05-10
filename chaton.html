@@ -27,8 +27,10 @@
 <div id="navigation">
   <a href="a/yesterday">Read Archive</a>
 </div>
-<iframe src="@@httpd-url@@:@@comet-port@@/" id="view-frame" width="75%" height="75%">
+<div id="view-frame-container">
+<iframe src="@@httpd-url@@:@@comet-port@@/" id="view-frame">
 </iframe>
+</div>
 
 <form onsubmit="post(); return false;" id="post-form">
   <table>
