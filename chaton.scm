@@ -13,10 +13,28 @@
   (export chaton-render
           chaton-render-from-file
           chaton-with-shared-locking
-          chaton-with-exclusive-locking))
+          chaton-with-exclusive-locking
+
+          +datadir+
+          +current-file+
+          +sequence-file+
+          +last-post-file+
+
+          +docdir+
+          with-output-to-file))
 (select-module chaton)
 
 (define *archivepath* "@@httpd-url@@@@url-path@@a/")
+
+;;; Some common constants
+(define-constant +datadir+ (or (sys-getenv "CHATON_DATADIR")
+                               "@@server-data-dir@@data"))
+(define-constant +current-file+ (build-path +datadir+ "current.dat"))
+(define-constant +sequence-file+ (build-path +datadir+ "sequence"))
+(define-constant +last-post-file+ (build-path +datadir+ "last-post"))
+
+(define-constant +docdir+ (or (sys-getenv "CHATON_DOCDIR")
+                              "@@server-htdocs-dir@@"))
 
 ;;;
 ;;;  Entries
@@ -186,4 +204,18 @@
 (define (safe-lines->sexps lines)
   (filter pair? (map safe-read lines)))
 
+;;;
+;;;  Misc. Utility
+;;;
 
+;; This feature should be built-in!
+
+(define (with-output-to-file file thunk . args)
+  (let1 atomic (get-keyword :atomic args #f)
+    (if atomic
+      (let1 tmp #`",|file|.tmp"
+        (guard (e [else (sys-unlink tmp) (raise e)])
+          (apply (with-module gauche with-output-to-file)
+                 tmp thunk (delete-keyword :atomic args))
+          (sys-rename tmp file)))
+      (apply (with-module gauche with-output-to-file) file thunk args))))

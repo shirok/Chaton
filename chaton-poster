@@ -14,24 +14,16 @@
 (select-module chaton.poster)
 
 (define *limit* 2048)
-(define *datadir* (or (cgi-get-metavariable "CHATON_DATADIR")
-                      "@@server-data-dir@@data"))
-(define *curfile*  (build-path *datadir* "current.dat"))
-(define *seqfile*  (build-path *datadir* "sequence"))
-(define *lastpost* (build-path *datadir* "last-post"))
-
-(define *docdir*  (or (cgi-get-metavariable "CHATON_DOCDIR")
-                      "@@server-htdocs-dir@@"))
-(define *seqfile-old*  (build-path *docdir* "var/seq"))
+(define +sequence-old+ (build-path +docdir+ "var/seq"))
 
 (define (poster-main args)
   (cgi-main (lambda (params)
               (let ([nick (cgi-get-parameter "nick" params :default #f)]
                     [text (cgi-get-parameter "text" params :default #f)])
-                (make-directory* *datadir*) ;ensure
+                (make-directory* +datadir+) ;ensure
                 (chaton-with-exclusive-locking
                  (lambda ()
-                   (call-with-output-file *curfile*
+                   (call-with-output-file +current-file+
                      (cut update <>
                           (string-trim-both nick) (string-trim-both text))
                      :if-exists :append)))
@@ -63,23 +55,17 @@
   ;; NB: for the backward compatibility, we store the sequence number under
   ;; $DOCDIR (old location) as well as $(DATADIR).  Don't forget to drop
   ;; the old stuff after some time.
-  (let ([cnt (x->integer (or (file->string *seqfile* :if-does-not-exist #f)
-                             (file->string *seqfile-old* :if-does-not-exist #f)))]
-        [tmpfile     #`",|*seqfile*|.tmp"]
-        [tmpfile-old #`",|*seqfile-old*|.tmp"])
-    (make-directory* (sys-dirname *seqfile*))
-    (with-output-to-file tmpfile (cut write (+ cnt 1)))
-    (sys-rename tmpfile *seqfile*)
-    (make-directory* (sys-dirname *seqfile-old*))
-    (with-output-to-file tmpfile-old (cut write (+ cnt 1)))
-    (sys-rename tmpfile-old *seqfile-old*)))
+  (let1 cnt (x->integer (or (file->string +sequence-file+ :if-does-not-exist #f)
+                            (file->string +sequence-old+ :if-does-not-exist #f)))
+    (make-directory* (sys-dirname +sequence-file+))
+    (with-output-to-file +sequence-file+ (cut write (+ cnt 1)) :atomic #t)
+    (make-directory* (sys-dirname +sequence-old+))
+    (with-output-to-file +sequence-old+ (cut write (+ cnt 1)) :atomic #t)))
 
 (define (record-last-post-timestamp)
   ;; NB: Theoretically the value written may differ from the entry's timestamp,
   ;; but we don't need precision here.
-  (let1 tmp #`",|*lastpost*|.tmp"
-    (with-output-to-file tmp (cut write (sys-time)))
-    (sys-rename tmp *lastpost*)))
+  (with-output-to-file +last-post-file+ (cut write (sys-time)) :atomic #t))
 
 ;;;===================================================================
 (select-module user)

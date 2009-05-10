@@ -1,5 +1,11 @@
 2009-05-09  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.scm (with-output-to-file): Provides a wrapper to support
+	  :atomic keyword arg, that implements a common idiom of write-to-
+	  temporary-file-and-rename.
+	  (+docdir+ etc.): Provides common constants.
+	* chaton-poster: Adapted to the new chaton.scm.
+
 	* chaton-viewer (emit-skeleton): Adds HTTP response header for the
 	  initial skeleton.
 
