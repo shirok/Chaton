@@ -1,6 +1,13 @@
 body { margin: 0; padding: 0; }
 #room-title { margin: 10pt 10pt -20pt 10pt; 
               font-size: 150%; font-family: Sans, Ariel, Helvetica; }
+
+#right-pane { float: right; width: 200px; }
+#right-pane > div { padding-right: 10px; }
+#right-pane .chaton-logo { text-align: right; }
+#right-pane .room-description { padding-top: 10px; font-size: 90%; }
+#right-pane .room-links { padding-top: 10px; text-align: right; }
+
 #left-pane  { margin: 10pt; padding: 5pt; }
 #left-pane #navigation { width:75%; text-align: right; }
 #view-pane { padding: 3px; border-width: 0pt; }

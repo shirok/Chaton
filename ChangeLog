@@ -1,5 +1,8 @@
 2009-05-10  Shiro Kawai  <shiro@acm.org>
 
+	* sample.conf, chaton.css: Added right-pane including room description
+	  and link to the badge.
+
 	* chaton-badge, badge.html: Added Badge support.
 	* htaccess, build-site, chaton.css: Changed accordingly.
 
