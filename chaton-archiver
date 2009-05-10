@@ -159,7 +159,7 @@
 (define (run-archiver args)
   (let-args (cdr args) ([q "q|quiet"]
                         [n "n|notrunc"]
-                        [else => (lambda (_) (usage (car args)))]
+                        [else => (lambda _ (usage (car args)))]
                         . args)
     (parameterize ([verbose (not q)]
                    [notrunc n])
@@ -169,9 +169,9 @@
     0))
 
 (define (usage argv0)
-  (exit 1 #`"Usage: ,argv0 [-q|quiet] [date] \
+  (exit 1 #`"Usage: ,argv0 [-q|quiet] [date]\
    \nOptions:\
-   \n -q, --quiet    Operate quietly."))
+   \n -q, --quiet    Operate quietly.\n"))
 
 ;;;
 ;;; Date utilities
