@@ -27,6 +27,9 @@ body { margin: 0; padding: 0; }
 .archive-navigate .to-room { text-align: center; }
 .archive-navigate .to-next { text-align: right; }
 
+.badge-main { margin-top: 30pt; margin-left: 20pt; }
+.badge-note { font-size: 90%; }
+
 img { margin: 3px; border: none; }
 img.hide-while-loading { display: none; }
 img.wshrunk { width: @@img-size-limit@@px; }

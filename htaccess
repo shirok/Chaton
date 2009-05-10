@@ -6,6 +6,10 @@
   SetHandler cgi-script
 </Files>
 
+<Files "b">
+  SetHandler cgi-script
+</Files>
+
 <Files "var/seq">
   ForceType text/plain
 </Files>

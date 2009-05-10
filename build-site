@@ -35,7 +35,9 @@
       (sed "chaton.scm"    (build-path datadir "chaton.scm") nconf)
       (sed "chaton-poster" (build-path docdir cgi-script) nconf)
       (sed "chaton-browser"(build-path docdir "a") nconf)
+      (sed "chaton-badge"  (build-path docdir "b") nconf)
       (sed "chaton.html"   (build-path docdir "chaton.html") nconf)
+      (sed "badge.html"    (build-path docdir "badge.html") nconf)
       (sed "htaccess"      (build-path docdir ".htaccess") nconf)
       (sed "chaton.css"    (build-path docdir "chaton.css") nconf)
       (cond

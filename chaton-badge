@@ -1,0 +1,75 @@
+#!/usr/bin/env gosh
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.badge
+  (use chaton)
+  (use www.cgi)
+  (use file.util)
+  (use text.html-lite)
+  (export badge-main))
+(select-module chaton.badge)
+
+(define (badge-main args)
+  (cgi-main
+   (lambda (_)
+     `(,(cgi-header :content-type "text/javascript; charset=utf-8"
+                    :cache-control "no-cache")
+       ,(build-badge (or (file->sexp-list +status.scm+ :if-does-not-exist #f)
+                         '()))))))
+
+(define (build-badge status)
+  (let ([last-update (cond [(assq 'last-post status) => how-long-ago]
+                           [else "no known updates"])]
+        [chatters (cond [(assq 'num-chatters status) => cadr] [else 0])]
+        [tip (html-escape-string "Start chatting in @@room-name@@")])
+    `("document.write('"
+      "<style type=\"text/css\">"
+      " .chaton-badge { display: block; overflow: hidden; position: relative; "
+      "  padding: 5px; width: 150px; max-width: 100%; min-height: 45px; "
+      "  background: #fff; border: 1px solid #ddd }"
+      " .chaton-badge * {margin:0; padding:0; color: #000; text-align: left;"
+      "  font: 10px \"Sans\",sans-serif; text-decoration: none; }"
+      " .chaton-badge img {position: absolute; top: 5px; left: 5px;}"
+      " .chaton-badge span { display: block; padding-left: 40px; }"
+      " .chaton-badge .chaton-room-name * { font-size: 12px; }"
+      " .chaton-badge .chaton-last-update { padding-top: 3px; }"
+      " .chaton-badge .chaton-chatters { padding-top 3px; }"
+      "</style>"
+      "<span class=\"chaton-badge\">"
+      "<a href=\"@@httpd-url@@@@url-path@@\">"
+      "<img alt=\"[icon]\" src=\"@@icon-url@@\" title=\"",tip"\" width=32 height=32>"
+      "</a>"
+      "<span class=\"chaton-room-name\">"
+      "<a href=\"@@httpd-url@@@@url-path@@\" title=\"",tip"\">"
+      ,(html-escape-string "Chaton @@room-name@@")"</a>"
+      "</span>"
+      "<span class=\"chaton-last-update\">",last-update"</span>"
+      "<span class=\"chaton-chatters\">"
+      ,(cond [(> chatters 1) (format "~a chatters" chatters)]
+             [(= chatters 1) "1 chatter"] [else "No chatters"])
+      "</span>"
+      "</span>"
+      "');")))
+
+(define (how-long-ago last)
+  (define (pl x) (if (= x 1) "" "s"))
+  (define (f x unit scale)
+    (let1 c (quotient x scale) (format "~a ~a~a ago" c unit (pl c))))
+  (let1 dt (- (sys-time) (cadr last))
+    (cond
+     [(< dt 60)     (f dt "second" 1)]
+     [(< dt 3600)   (f dt "minute" 60)]
+     [(< dt 86400)  (f dt "hour" 3600)]
+     [(< dt 604800) (f dt "day" 86400)]
+     [else          (f dt "week" 604800)])))
+
+;;;===================================================================
+
+(select-module user)
+(import chaton.badge)
+(define main badge-main)
+
+;; Local variables:
+;; mode: scheme
+;; end:

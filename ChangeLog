@@ -1,3 +1,8 @@
+2009-05-10  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-badge, badge.html: Added Badge support.
+	* htaccess, build-site, chaton.css: Changed accordingly.
+
 2009-05-09  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (with-output-to-file): Provides a wrapper to support
