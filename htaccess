@@ -14,4 +14,8 @@
   ForceType text/plain
 </Files>
 
+<Files *.html>
+  ForceType 'text/html; charset=utf-8'
+</Files>
+
 DirectoryIndex chaton.html

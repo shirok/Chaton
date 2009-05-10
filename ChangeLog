@@ -1,5 +1,8 @@
 2009-05-10  Shiro Kawai  <shiro@acm.org>
 
+	* htaccess: Force charset=utf-8 for *.html, since the room description
+	  may contain utf-8 characters.
+
 	* sample.conf, chaton.css: Added right-pane including room description
 	  and link to the badge.
 

@@ -30,7 +30,7 @@
       "  background: #fff; border: 1px solid #ddd }"
       " .chaton-badge * {margin:0; padding:0; color: #000; text-align: left;"
       "  font: 10px \"Sans\",sans-serif; text-decoration: none; }"
-      " .chaton-badge img {position: absolute; top: 5px; left: 5px;}"
+      " .chaton-badge img {position: absolute; top: 5px; left: 5px; border: none;}"
       " .chaton-badge span { display: block; padding-left: 40px; }"
       " .chaton-badge .chaton-room-name * { font-size: 12px; }"
       " .chaton-badge .chaton-last-update { padding-top: 3px; }"
