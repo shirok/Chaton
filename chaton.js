@@ -262,7 +262,7 @@ function irandom(n) {
     }
 }
 
-// Watchdog support --------------------------------------
+// Watchdog ------------------------------------------
 //  Some browsers (e.g. Safari) do not call any callback
 //  when server disconnects Ajax client.  As a safety net we set
 //  watchdog timer for Comet connection.  In normal circumstances
@@ -273,8 +273,8 @@ function irandom(n) {
 var dog_id = null;
 
 function startWatchDog(cid) {
-    if (dog_id) clearTimeout(dog_id);                        // just in case
-    dog_id = setTimeout(function () {bark(cid);}, 8*60000); // 10 minutes
+    if (dog_id) clearTimeout(dog_id);                       // just in case
+    dog_id = setTimeout(function () {bark(cid);}, 8*60000); // 8 minutes
 }
 
 function bark(cid) {
