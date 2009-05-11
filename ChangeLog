@@ -1,3 +1,8 @@
+2009-05-11  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer (make-json-packet, write-status-js): Use double-quote
+	  to quote field name to comply json spec (rfc4627).
+
 2009-05-10  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.js (startWatchDog, tameWatchDog, bark): Added watchdog timer
