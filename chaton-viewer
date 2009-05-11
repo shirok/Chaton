@@ -121,7 +121,7 @@
 (define (write-status-js s l n)
   (with-output-to-file +status.js+
     (lambda () 
-      (format #t "{\"last-post\":~s;\"num-chatters\":~s;\"post-sequence\":~s}"
+      (format #t "{\"last-post\":~s,\"num-chatters\":~s,\"post-sequence\":~s}"
               l n s))
     :atomic #t))
 
