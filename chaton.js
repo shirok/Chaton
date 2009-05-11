@@ -164,14 +164,17 @@ function fetchContent(cid) {
           onFailure: function(t) { fetchRetry(cid); },
           onException: function(r, e) { fetchRetry(cid); }
       });
+    startWatchDog(cid);
 }
 
 function fetchRetry(cid) {
+    tameWatchDog();
     showStatus('Connection Lost.  Retrying...', 'status-alert');
     setTimeout(function () { resumeFetch(cid); }, 5000 + irandom(10000));
 }
 
 function insertContent(json, cid) {
+    tameWatchDog();
     if (json.ver != '@@version@@') {
         // The comet server is updated.  We replace the entire document.
         document.location.href = '@@httpd-url@@:@@comet-port@@/';
@@ -256,6 +259,35 @@ function irandom(n) {
     for (;;) {
         var r = Math.floor(Math.random() * n);
         if (r != n) return r;
+    }
+}
+
+// Watchdog support --------------------------------------
+//  Some browsers (e.g. Safari) do not call any callback
+//  when server disconnects Ajax client.  As a safety net we set
+//  watchdog timer for Comet connection.  In normal circumstances
+//  the Comet server replies at most 6 minutes---if we don't hear
+//  from the server for 8 minutes, we assume the connection is lost
+//  and reload the whole document.
+
+var dog_id = null;
+
+function startWatchDog(cid) {
+    if (dog_id) clearTimeout(dog_id);                        // just in case
+    dog_id = setTimeout(function () {bark(cid);}, 8*60000); // 10 minutes
+}
+
+function bark(cid) {
+    // We don't retry fetch, since there's no reliable way to cancel
+    // the ongoing Ajax request.  We replace the whole document instead.
+    showStatus('Connection Lost.  Retrying...', 'status-alert');
+    document.location.href = '@@httpd-url@@:@@comet-port@@/';
+}
+
+function tameWatchDog() {
+    if (dog_id) {
+        clearTimeout(dog_id);
+        dog_id = null;
     }
 }
 

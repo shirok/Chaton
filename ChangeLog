@@ -1,5 +1,11 @@
 2009-05-10  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.js (startWatchDog, tameWatchDog, bark): Added watchdog timer
+	  for comet connection to support browsers that don't fire any events
+	  when Ajax connection is lost.  The timer won't be fired in normal
+	  circumstances; it only barks when Comet server is restarted but
+	  the browser failed to detect it.
+
 	* htaccess: Force charset=utf-8 for *.html, since the room description
 	  may contain utf-8 characters.
 
