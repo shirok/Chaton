@@ -34,7 +34,8 @@
 (define *cv* (make-condition-variable))
 (define *size* 0)
 (define *last-state* #f)
-(define *text-map* (make-tree-map = <))
+(define *text-map* (make-tree-map = <)) ; position -> rendered text fragment
+(define *sexp-map* (make-tree-map = <)) ; position -> list of entries
 
 ;;;
 ;;;   Main entry
@@ -79,15 +80,16 @@
 ;; *mutex* must be locked by the caller.   If an error occurs,
 ;; pull-text! unlocks *mutex*.
 (define (pull-text! source trunc?)
-  (when trunc? (tree-map-clear! *text-map*))
+  (when trunc? (tree-map-clear! *text-map*) (tree-map-clear! *sexp-map*))
   (guard (e [else (mutex-unlock! *mutex*) (raise e)])
     (let ([pos (if trunc? 0 *size*)]
           [last-state (if trunc? #f *last-state*)])
-      (receive (ttree new-state new-pos)
-          (chaton-render-from-file source pos last-state)
-        (tree-map-put! *text-map* pos (tree->string ttree))
-        (set! *last-state* new-state)
-        (set! *size* new-pos)))))
+      (receive (entries new-pos) (chaton-read-entries source pos)
+        (receive (ttree new-state) (chaton-render entries last-state)
+          (tree-map-put! *sexp-map* pos entries)
+          (tree-map-put! *text-map* pos (tree->string ttree))
+          (set! *last-state* new-state)
+          (set! *size* new-pos))))))
 
 ;;;
 ;;;   Status thread
@@ -137,9 +139,9 @@
   (unwind-protect
       (guard (e [(eq? e 'eof) (log-child csock "disconnected")]
                 [else (log-child csock "error ~s" (ref e'message))])
-        (match-let1 (pos . cid) (get-header csock)
+        (match-let1 (pos cid sexp?) (get-header csock)
           (if pos
-            (emit-tail csock pos cid)
+            (emit-tail csock pos cid sexp?)
             (emit-skeleton (socket-output-port csock)))))
     (socket-close csock)))
 
@@ -153,8 +155,9 @@
                           [else '()])]
                  [hdrs (rfc822-header->list in)])
         (log-child csock "request ~s" req)
-        (cons (cgi-get-parameter "p" p :convert string->number)   ;pos
-              (cgi-get-parameter "c" p :convert string->number))) ;cid
+        (list (cgi-get-parameter "p" p :convert string->number) ;pos
+              (cgi-get-parameter "c" p :convert string->number) ;cid
+              (cgi-get-parameter "s" p)))                       ;sexpr?
       (raise 'eof))) 
 
 ;; NB: it may be more efficient if we send out existing content here,
@@ -182,7 +185,7 @@
 ;;    We send back ping packet to the client anyway.  This is necessary
 ;;    to detect if the client is gone.
 
-(define (emit-tail csock pos cid)
+(define (emit-tail csock pos cid sexp?)
   (define ccnt (get-num-clients))
   (define time-started (sys-time))
   (define ncid (client-connected csock cid)) ; possibly update cid
@@ -193,60 +196,67 @@
            (cond
             [(not (eqv? ncid cid)) ; this is reconnection after server restart.
              (mutex-unlock! *mutex*)
-             (send-ping pos ncid (get-num-clients) csock)]
+             (send-ping csock ncid pos sexp?)]
             [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15))) (loop)]
             [(< time-started (- (sys-time) (+ 240 (random-integer 120))))
              (mutex-unlock! *mutex*)
-             (send-ping pos ncid (get-num-clients) csock)] ; hard timeout
+             (send-ping csock ncid pos sexp?)] ; hard timeout
             [(and-let* ([ccnt2 (get-num-clients)]
                         [ (not (= ccnt ccnt2)) ])
                (mutex-unlock! *mutex*)
-               (send-ping pos ncid ccnt2 csock) #t)] ;; soft timeout, ccnt change
+               (send-ping csock ncid pos sexp?) #t)] ; soft timeout, ccnt change
             [else (loop)])]
           [(< pos *size*)
-           (let ([s *size*] [t (text-retrieve *text-map* pos)])
+           (let ([s *size*] [content (content-retrieve pos sexp?)])
              (mutex-unlock! *mutex*)
-             (send-diff pos s t ncid csock))]
+             (send-diff csock ncid pos s content sexp?))]
           [else                         ;file is truncated?
-           (let ([s *size*] [t (text-retrieve *text-map* 0)])
+           (let ([s *size*] [content (content-retrieve 0 sexp?)])
              (mutex-unlock! *mutex*)
-             (send-diff 0 s t ncid csock))])))
+             (send-diff csock ncid 0 s content sexp?))])))
 
-(define (send-diff start end text cid csock)
+(define (send-diff csock cid start end content sexp?)
   (log-child csock "sending ~s-~s" start end)
-  (send-reply (make-json-packet cid end (get-num-clients) text) cid csock))
+  (send-reply csock cid end content sexp?))
 
-(define (send-ping pos cid ccnt csock)
+(define (send-ping csock cid pos sexp?)
   (log-child csock "ping back ~a" cid)
-  (send-reply (make-json-packet cid pos ccnt "") cid csock))
+  (send-reply csock cid pos #f sexp?))
 
-(define (make-json-packet cid pos ccnt text)
-  (format "{\"pos\":~s,\"nc\":~s,\"ver\":~s,\"cid\":~s,\"text\":~s}"
-          pos ccnt "@@version@@" cid text))
-
-(define (send-reply json cid csock) 
+(define (send-reply csock cid pos content sexp?)
   (client-replied csock cid)
-  (let1 out (socket-output-port csock)
+  (let ([packet (make-packet cid pos content sexp?)]
+        [out (socket-output-port csock)])
     (format out "HTTP/1.1 200 OK\r\n\
-	         Content-type: application/json; charset=utf-8\r\n\
+	         Content-type: application/~a; charset=utf-8\r\n\
 	         Content-length: ~s\r\n\r\n\
-	         ~a" (string-size json) json)
+	         ~a"
+            (if sexp? "x-sexpr" "json") (string-size packet) packet)
     (flush out)))
 
-(define (text-retrieve tmap start)
+(define (make-packet cid pos content sexp?)
+  (if sexp?
+    (write-to-string
+     `((pos . ,pos) (nc . ,(get-num-clients)) (ver . "@@version@@")
+       (cid . ,cid) (text . ,(or content '()))))
+    (format "{\"pos\":~s,\"nc\":~s,\"ver\":~s,\"cid\":~s,\"text\":~s}"
+            pos (get-num-clients) "@@version@@" cid (or content ""))))
+
+(define (content-retrieve start sexp?)
+  (define tmap (if sexp? *sexp-map* *text-map*))
+  (define unit (if sexp? '() ""))
+  (define merge (if sexp? (.$ concatenate reverse) string-concatenate-reverse))
   (let loop ([key start]
              [r   '()])
     (if (not key)
-      (string-concatenate-reverse r)
+      (merge r)
       (loop (tree-map-successor tmap key)
-            (cons (tree-map-get tmap key "") r)))))
+            (cons (tree-map-get tmap key unit) r)))))
 
 (define (log-child csock fmt . args)
-  (log-format "(~a) ~a" (child-name csock) (apply format fmt args)))
-
-(define (child-name csock)
-  (and-let* ([addr (socket-address csock)])
-    (sockaddr-name addr)))
+  (log-format "(~a) ~a"
+              (if-let1 addr (socket-address csock) (sockaddr-name addr) #f)
+              (apply format fmt args)))
 
 ;;;
 ;;;   Client tracking
@@ -401,7 +411,7 @@
     (cond [(= pid 0) (run-viewer-server port file)]
           [(check-running pid port)
            (unless quiet? (print "@@comet-script@@ Restarted (pid "pid")."))]
-          [else (exit 1 "@@comet-script@@ could'nt be started.")])))
+          [else (exit 1 "@@comet-script@@ couldn't be started.\n")])))
 
 (define (check-running pid port)
   (let loop ((n 0))
