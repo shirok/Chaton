@@ -1,3 +1,8 @@
+2009-05-12  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton-read-entries, chaton-render-from-file): split
+	  atomic file reading part from chaton-render-from-file.
+
 2009-05-11  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-apilogin: Added.

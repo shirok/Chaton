@@ -10,10 +10,9 @@
   (use util.match)
   (use gauche.fcntl)
   (use gauche.sequence)
-  (export chaton-render
+  (export chaton-render chaton-read-entries
           chaton-render-from-file
-          chaton-with-shared-locking
-          chaton-with-exclusive-locking
+          chaton-with-shared-locking chaton-with-exclusive-locking
 
           +datadir+
           +current-file+
@@ -50,12 +49,17 @@
 (define (chaton-render es last-state)
   (map-accum chaton-render-1 (ensure-state last-state) es))
 
-;; render from file, starting from POS.
+;; Read data file from FILE, starting from POS.
+;; Returns list of entries and new POS.
+(define (chaton-read-entries file pos)
+  (receive (lines pos) (read-diff file pos)
+    (values (safe-lines->sexps lines) pos)))
+
+;; A convenience routine combinig above two.
 ;; returns <text-tree>, new-state, and new POS.
 (define (chaton-render-from-file file pos last-state)
-  (receive (lines pos) (read-diff file pos)
-    (receive (tree new-state)
-        (chaton-render (safe-lines->sexps lines) (ensure-state last-state))
+  (receive (es pos) (chaton-read-entries file pos)
+    (receive (tree new-state) (chaton-render es (ensure-state last-state))
       (values tree new-state pos))))
 
 ;;;
