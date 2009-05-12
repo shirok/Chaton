@@ -1,7 +1,15 @@
 #!/usr/bin/env gosh
 ;; A prototype of API access gateway
 
+;; API key auth scheme
+;; (1) create a list of "NAME=VALUE"
+;; (2) sort the list alphabetically
+;; (3) concatenate all params, plus API key, then calculate md5hash
+;; (4) attach the hash value as "hash=HASHVAL"
+
 (use www.cgi)
+(use rfc.md5)
+(use util.digest)
 (use gauche.logger)
 
 (define-constant +logfile+ "@@server-data-dir@@/logs/api.log")
@@ -26,9 +34,13 @@
       (check-login ps))))
 
 (define (check-login ps)
-  (let ([name (cgi-get-parameter "name" ps)]
-        [key  (cgi-get-parameter "key" ps)])
-    (cond [(not (equal? key "guest"))
+  (let* ([name  (cgi-get-parameter "name" ps)]
+         [nonce (cgi-get-parameter "nonce" ps)]
+         [hash  (cgi-get-parameter "hash" ps)]
+         [key   (lookup-apikey name)])
+    (cond [(not key)
+           (reply-error "401 Unauthorized" #`"unregistered API user: ,name")]
+          [(not (valid-hash? name nonce hash key))
            (reply-error "401 Unauthorized"
                         #`"apikey mismatch (name=,name key=,key)")]
           [else
@@ -37,6 +49,12 @@
              ,(write-to-string
                `((post-uri . ,+poster+)
                  (comet-uri . ,+viewer+))))])))
+
+(define (valid-hash? name nonce hash key)
+  (let1 str #`"name=,|name|nonce=,|nonce|,|key|"
+    (equal? hash (digest-hexify (digest-string <md5> str)))))
+
+(define (lookup-apikey name) "guest")   ;for now
 
 ;; Local variables:
 ;; mode: scheme
