@@ -2,6 +2,10 @@
   SetHandler cgi-script
 </Files>
 
+<Files "apilogin">
+  SetHandler cgi-script
+</Files>
+
 <Files "a">
   SetHandler cgi-script
 </Files>

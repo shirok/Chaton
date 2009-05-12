@@ -1,0 +1,43 @@
+#!/usr/bin/env gosh
+;; A prototype of API access gateway
+
+(use www.cgi)
+(use gauche.logger)
+
+(define-constant +logfile+ "@@server-data-dir@@/logs/api.log")
+(define-constant +poster+  "@@httpd-url@@@@url-path@@@@cgi-script@@")
+(define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
+
+(define (main args)
+  (log-open +logfile+)
+  (cgi-main handle-request)
+  0)
+
+(define (reply-error msg reason)
+  (log-format "~a: ~a (~a)" msg reason (remote-addr))
+  (cgi-header :status msg))
+
+(define (remote-addr) (cgi-get-metavariable "REMOTE_ADDR"))
+
+(define (handle-request ps)
+  (let1 m (cgi-get-metavariable "REQUEST_METHOD")
+    (if (not (equal? m "POST"))
+      (reply-error "405 Method not allowed" m)
+      (check-login ps))))
+
+(define (check-login ps)
+  (let ([name (cgi-get-parameter "name" ps)]
+        [key  (cgi-get-parameter "key" ps)])
+    (cond [(not (equal? key "guest"))
+           (reply-error "401 Unauthorized"
+                        #`"apikey mismatch (name=,name key=,key)")]
+          [else
+           (log-format "authenticated ~a (~a)" name (remote-addr))
+           `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8")
+             ,(write-to-string
+               `((post-uri . ,+poster+)
+                 (comet-uri . ,+viewer+))))])))
+
+;; Local variables:
+;; mode: scheme
+;; end:

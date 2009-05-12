@@ -1,5 +1,8 @@
 2009-05-11  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-apilogin: Added.
+	* build-site, htaccess: Changed accordingly.
+
 	* chaton-viewer (make-json-packet, write-status-js): Use double-quote
 	  to quote field name to comply json spec (rfc4627).
 
