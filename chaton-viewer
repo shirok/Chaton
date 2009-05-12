@@ -46,12 +46,9 @@
     (spawn-monitor source)
     (spawn-status)
     (spawn-client-tracker)
-    (guard (e [else
-               (log-format "main loop error: ~a" (ref e'message))
-               (cleanup)])
-      (let loop ()
-        (spawn-child (socket-accept server-sock))
-        (loop)))))
+    (guard (e [else (log-format "main loop error: ~a" (ref e'message))
+                    (cleanup)])
+      (while #t (spawn-child (socket-accept server-sock))))))
 
 ;;;
 ;;;   Monitor thread
@@ -66,7 +63,7 @@
 
 (define (do-monitor source)
   (guard (e [else (log-format "monitor error: ~s" (ref e'message))])
-    (let loop ()
+    (while #t
       (and (file-exists? source)
            (let1 s (file-size source)
              (mutex-lock! *mutex*)
@@ -75,8 +72,7 @@
                (pull-text! source (< s *size*))
                (condition-variable-broadcast! *cv*))
              (mutex-unlock! *mutex*)))
-      (sys-sleep 1)
-      (loop)))
+      (sys-sleep 1)))
   (do-monitor source))
 
 ;; Reads source file into *text-map*, updates global data.
@@ -97,8 +93,7 @@
 ;;;   Status thread
 ;;;
 
-(define (spawn-status)
-  (thread-start! (make-thread do-status)))
+(define (spawn-status) (thread-start! (make-thread do-status)))
 
 (define (do-status)
   (guard (e [else (log-format "status error: ~s" (ref e'message))])
@@ -136,8 +131,7 @@
 ;;;   Comet threads
 ;;;
 
-(define (spawn-child csock)
-  (thread-start! (make-thread (cut do-child csock))))
+(define (spawn-child csock) (thread-start! (make-thread (cut do-child csock))))
 
 (define (do-child csock)
   (unwind-protect
@@ -274,11 +268,9 @@
 
 (define (%allocate-cid init?)
   (let loop ([cid (random-integer CID_MAX)])
-    (cond [(hash-table-get *clnt-table* cid #f)
-           (loop (random-integer CID_MAX))]
-          [else
-           (hash-table-put! *clnt-table* cid `(,(not init?) . ,(sys-time)))
-           cid])))
+    (cond [(hash-table-get *clnt-table* cid #f) (loop (random-integer CID_MAX))]
+          [else (hash-table-put! *clnt-table* cid `(,(not init?) . ,(sys-time)))
+                cid])))
 
 (define (new-client-cid)
   (with-locking-mutex *clnt-mutex* (cut %allocate-cid #t)))
@@ -299,10 +291,9 @@
 (define (client-replied csock cid)
   (with-locking-mutex *clnt-mutex*
     (lambda ()
-      (cond [(hash-table-get *clnt-table* cid #f)
-             => (lambda (_)
-                  (hash-table-put! *clnt-table* cid `(#f . ,(sys-time))))]
-            [else (log-child csock "child has unknown cid: ~a" cid)]))))
+      (if (hash-table-exists? *clnt-table* cid)
+        (hash-table-put! *clnt-table* cid `(#f . ,(sys-time)))
+        (log-child csock "child has unknown cid: ~a" cid)))))
 
 (define (get-num-clients)
   (with-locking-mutex *clnt-mutex* (cut hash-table-num-entries *clnt-table*)))
@@ -319,6 +310,9 @@
                (log-format "client ~a gone" k)
                (hash-table-delete! *clnt-table* k)))))))))
 
+(define (spawn-client-tracker)
+  (thread-start! (make-thread client-tracker)))
+
 (define (client-tracker)
   (let loop ((nc (get-num-clients)))
     (sys-sleep 1)
@@ -328,9 +322,6 @@
       (unless (= nc nnc)
         (with-output-to-file +num-chatters-file+ (cut write nc) :atomic #t))
       (loop nnc))))
-
-(define (spawn-client-tracker)
-  (thread-start! (make-thread client-tracker)))
 
 ;;;
 ;;;   Content to distribute
@@ -356,11 +347,9 @@
 (define *pidfile* "@@server-data-dir@@viewer.pid")
 
 (define (read-pid)
-  (guard (e [(<system-error> e) #f])
-    (string->number (sys-readlink *pidfile*))))
+  (guard (e [(<system-error> e) #f]) (string->number (sys-readlink *pidfile*))))
 
-(define (write-pid)
-  (sys-symlink (x->string (sys-getpid)) *pidfile*))
+(define (write-pid) (sys-symlink (x->string (sys-getpid)) *pidfile*))
 
 ;;;
 ;;;  Initialize, shutdown, and process management
@@ -369,13 +358,11 @@
 (define (initialize port file)
   (random-source-randomize! default-random-source)
   (guard (e [(<system-error> e)
-             (cond [(read-pid)
-                    => (lambda (pid)
-                         (unless (= pid (sys-getpid))
-                           (exit 1 "@@comet-script@@ seems already running \
-                                   (pid ~a)." pid)))]
-                   [else (exit 1 "@@comet-script@@ can't write pidfile (~a): \
-                                  ~a" *pidfile* (ref e'message))])])
+             (if-let1 pid (read-pid)
+               (unless (= pid (sys-getpid))
+                 (exit 1 "@@comet-script@@ seems already running (pid ~a)." pid))
+               (exit 1 "@@comet-script@@ can't write pidfile (~a): ~a"
+                     *pidfile* (ref e'message)))])
     (write-pid))
   (log-format "starting at port ~a" port)
   (set-signal-handler!
@@ -384,43 +371,37 @@
      (log-format "exitting by signal ~a" (sys-signal-name s))
      (cleanup))))
 
-(define (cleanup)
-  (sys-unlink *pidfile*)
-  (exit 0))
+(define (cleanup) (sys-unlink *pidfile*) (exit 0))
 
 (define (shutdown-viewer-server quiet?)
-  (let1 pid (read-pid)
-    (if pid
-      (guard (e [(<system-error> e)
-                 (exit 1 "Killing @@comet-script@@ failed: ~a" (ref e'message))])
-        (sys-kill pid SIGINT)
-        (unless quiet? (print "@@comet-script@@ pid "pid" is killed.")))
-      (unless quiet? (print "@@comet-script@@ isn't running.")))))
+  (if-let1 pid (read-pid)
+    (guard (e [(<system-error> e)
+               (exit 1 "Killing @@comet-script@@ failed: ~a" (ref e'message))])
+      (sys-kill pid SIGINT)
+      (unless quiet? (print "@@comet-script@@ pid "pid" is killed.")))
+    (unless quiet? (print "@@comet-script@@ isn't running."))))
 
 (define (check-viewer-server port)
-  (let1 pid (read-pid)
-    (if pid
-      (if (check-running pid port)
-        (print "@@comet-script@@ (pid "pid") running.")
-        (print "@@comet-script@@ (pid "pid") does not respond.\
+  (if-let1 pid (read-pid)
+    (if (check-running pid port)
+      (print "@@comet-script@@ (pid "pid") running.")
+      (print "@@comet-script@@ (pid "pid") does not respond.\
               \nYou might want to remove "*pidfile*"."))
-      (print "@@comet-script@@ is not running."))))
+    (print "@@comet-script@@ is not running.")))
 
 (define (restart-viewer-server quiet? port file)
-  (let1 pid (read-pid)
-    (when pid
-      (guard (e [(<system-error> e) (sys-unlink *pidfile*)])
-        (sys-kill pid SIGTERM)
-        (sys-sleep 1)))
-    ;; We start new instance.
-    ;; NB: We should be more careful about daemonization; better to
-    ;; redirect stdout and stderr to /dev/null for the child process.
-    (let1 pid (sys-fork)
-      (cond [(= pid 0) (run-viewer-server port file)]
-            [(check-running pid port)
-             (unless quiet? (print "@@comet-script@@ Restarted (pid "pid")."))]
-            [else
-             (exit 1 "@@comet-script@@ could'nt be started.")]))))
+  (if-let1 pid (read-pid)
+    (guard (e [(<system-error> e) (sys-unlink *pidfile*)])
+      (sys-kill pid SIGTERM)
+      (sys-sleep 1)))
+  ;; We start new instance.
+  ;; NB: We should be more careful about daemonization; better to
+  ;; redirect stdout and stderr to /dev/null for the child process.
+  (let1 pid (sys-fork)
+    (cond [(= pid 0) (run-viewer-server port file)]
+          [(check-running pid port)
+           (unless quiet? (print "@@comet-script@@ Restarted (pid "pid")."))]
+          [else (exit 1 "@@comet-script@@ could'nt be started.")])))
 
 (define (check-running pid port)
   (let loop ((n 0))
