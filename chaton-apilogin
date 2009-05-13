@@ -8,13 +8,16 @@
 ;; (4) attach the hash value as "hash=HASHVAL"
 
 (use www.cgi)
+(use rfc.http)
 (use rfc.md5)
 (use util.digest)
+(use file.util)
 (use gauche.logger)
 
 (define-constant +logfile+ "@@server-data-dir@@/logs/api.log")
 (define-constant +poster+  "@@httpd-url@@@@url-path@@@@cgi-script@@")
 (define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
+(define-constant +credential+ "@@server-data-dir@@auth")
 
 (define (main args)
   (log-open +logfile+)
@@ -43,16 +46,29 @@
           [(not (valid-hash? name nonce hash key))
            (reply-error "401 Unauthorized"
                         #`"apikey mismatch (name=,name key=,key)")]
-          [else
-           (log-format "authenticated ~a (~a)" name (remote-addr))
-           `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8")
-             ,(write-to-string
-               `((post-uri . ,+poster+)
-                 (comet-uri . ,+viewer+))))])))
+          [(get-cid key) => (cut reply-ok name <>)]
+          [(reply-error "503 Service Unavailable"
+                        "accesskey calculation failed")])))
+
+(define (reply-ok name cid)
+  (log-format "authenticated ~a (~a)" name (remote-addr))
+  `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8")
+    ,(write-to-string
+      `((post-uri . ,+poster+)
+        (comet-uri . ,+viewer+)
+        (cid . ,cid)))))
 
 (define (valid-hash? name nonce hash key)
   (let1 str #`"name=,|name|nonce=,|nonce|,|key|"
     (equal? hash (digest-hexify (digest-string <md5> str)))))
+
+(define (get-cid key)
+  (and-let* ([ (file-exists? +credential+) ]
+             [cred (file->string +credential+)])
+    (rxmatch-let (#/\/\/([^\/]+)\// +viewer+) (_ host)
+      (receive (status hdrs body) (http-get host #`"/getcid?cred=,cred")
+        (and (equal? status "200")
+             (string->number body))))))
 
 (define (lookup-apikey name) "guest")   ;for now
 
