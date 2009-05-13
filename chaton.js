@@ -158,11 +158,19 @@ function fetchContent(cid) {
       {
           method: 'get',
           evalJSON: 'force',
-          onSuccess: function(t) { insertContent(t.responseJSON, cid); },
-          // When Comet server shuts down, Firefox triggers onException,
-          // while IE7 triggers onFailure.
-          onFailure: function(t) { fetchRetry(cid); },
-          onException: function(r, e) { fetchRetry(cid); }
+          // When Comet server disconnects, Firefox calls onSuccess with
+          // emtpy content, while IE7 calls onFailure.
+          onSuccess: function(t) {
+              var json = t.responseJSON;
+              if (!(json && json.ver && typeof(json.cid) == 'number')) {
+                  fetchRetry(cid);
+              } else {
+                  insertContent(json, cid);
+              }
+          },
+          onFailure: function(t) {
+              fetchRetry(cid);
+          }
       });
     startWatchDog(cid);
 }

@@ -28,6 +28,7 @@
 (define-constant +viewer-port+ (x->integer "@@comet-port@@"))
 (define-constant +viewer-file+ "@@server-data-dir@@data/current.dat")
 (define-constant +viewer-log+ "@@server-data-dir@@logs/comet.log")
+(define-constant +credential+ "@@server-data-dir@@auth")
 
 ;; Global data shared between threads.  Accessor should lock *mutex* (ugh!).
 (define *mutex* (make-mutex))
@@ -138,6 +139,7 @@
 (define (do-child csock)
   (unwind-protect
       (guard (e [(eq? e 'eof) (log-child csock "disconnected")]
+                [(eq? e 'dup) (log-child csock "duplicate request")]
                 [else (log-child csock "error ~s" (ref e'message))])
         (match-let1 (pos cid sexp?) (get-header csock)
           (if pos
@@ -262,24 +264,36 @@
 ;;;   Client tracking
 ;;;
 
-;; Active client table.  When client first connects (GET to '/') we
-;; allocate a cid for it.    *client-table* maps cid to client's
-;; state : (<waiting> . <timestamp>).   <timestamp> is the last time
-;; we sent back to the client.  <waiting> is #t if the client is connecting
-;; to us and waiting for reply.   If <waiting> is #t, we know the client
-;; is active.  If <waiting> is #f and <timestamp> is older than CLNT_TIMEOUT
+;; Client is identified by CID.  When client first connects to the comet
+;; server we allocate a new CID for it.
+;; *client-table* maps CID into:
+;;    ClientEntry <connected?> <timestamp>
+;; <Connected?> is #t if client's request is held by the comet server, and
+;; #f if we send back a reply and the client has not yet issued a new request.
+;; By the nature of Comet, it should be #t for most of the time.
+;; <Timestamp> is the last time we sent back a reply to the client.
+;;
+;; If the client is not connected and <timestamp> is older than CLNT_TIMEOUT
 ;; from now, we assume the client is gone.  An active client usually reconnects
 ;; immediatly after we send back the reply, so we can set CLNT_TIMEOUT
 ;; fairly short.
+
 (define *clnt-mutex* (make-mutex))
 (define *clnt-table* (make-hash-table 'eqv?)) ; cid -> (waiting . timestamp)
 (define-constant CLNT_TIMEOUT 10)
 (define-constant CID_MAX #x10000000)
 
+(define (make-cid-entry waiting?) (cons waiting? (sys-time)))
+(define (cid-waiting? entry)      (car entry))
+(define (cid-mark-waiting! entry) (set-car! entry #t))
+(define (cid-unmark-waiting! entry)
+  (begin (set-car! entry #f) (set-cdr! entry (sys-time))))
+(define (cid-timestamp entry)     (cdr entry))
+
 (define (%allocate-cid init?)
   (let loop ([cid (random-integer CID_MAX)])
     (cond [(hash-table-get *clnt-table* cid #f) (loop (random-integer CID_MAX))]
-          [else (hash-table-put! *clnt-table* cid `(,(not init?) . ,(sys-time)))
+          [else (hash-table-put! *clnt-table* cid (make-cid-entry (not init?)))
                 cid])))
 
 (define (new-client-cid)
@@ -290,9 +304,10 @@
   (with-locking-mutex *clnt-mutex*
     (lambda ()
       (cond [(hash-table-get *clnt-table* cid #f)
-             => (lambda (x)
-                  (hash-table-put! *clnt-table* cid `(#t . ,(cdr x)))
-                  cid)]
+             => (lambda (e)
+                  (if (cid-waiting? e) ; this is a duplicate request.
+                    (raise 'dup)
+                    (begin (cid-mark-waiting! e) cid)))]
             [else
              (rlet1 ncid (%allocate-cid #f)
                (log-child csock "child has unknown cid: ~a, reallocating ~a"
@@ -301,9 +316,8 @@
 (define (client-replied csock cid)
   (with-locking-mutex *clnt-mutex*
     (lambda ()
-      (if (hash-table-exists? *clnt-table* cid)
-        (hash-table-put! *clnt-table* cid `(#f . ,(sys-time)))
-        (log-child csock "child has unknown cid: ~a" cid)))))
+      (cond [(hash-table-get *clnt-table* cid #f) => cid-unmark-waiting!]
+            [else (log-child csock "child has unknown cid: ~a" cid)]))))
 
 (define (get-num-clients)
   (with-locking-mutex *clnt-mutex* (cut hash-table-num-entries *clnt-table*)))
@@ -315,10 +329,9 @@
         (hash-table-for-each
          *clnt-table*
          (lambda (k v)
-           (match-let1 (waiting . ts) v
-             (when (and (not waiting) (<= ts lim))
-               (log-format "client ~a gone" k)
-               (hash-table-delete! *clnt-table* k)))))))))
+           (when (and (not (cid-waiting? v)) (<= (cid-timestamp v) lim))
+             (log-format "client ~a gone" k)
+             (hash-table-delete! *clnt-table* k))))))))
 
 (define (spawn-client-tracker)
   (thread-start! (make-thread client-tracker)))

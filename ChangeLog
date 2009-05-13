@@ -1,6 +1,11 @@
 2009-05-12  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.js (fetchContent): fix handling of disconnecting events.
+	  It was wrong to use onException; Firefox calls onSuccess with empty
+	  body when disconnected.
+
 	* chaton-viewer: start adding s-expr interface.
+	  Rejects duplicate request from the same cid.
 
 	* chaton.scm (chaton-read-entries, chaton-render-from-file): split
 	  atomic file reading part from chaton-render-from-file.
