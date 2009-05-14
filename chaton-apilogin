@@ -4,6 +4,8 @@
 (use www.cgi)
 (use rfc.http)
 (use file.util)
+(use util.list)
+(use srfi-1)
 (use gauche.logger)
 
 (define-constant +logfile+ "@@server-data-dir@@/logs/api.log")
@@ -34,15 +36,15 @@
     (rxmatch-let (#/\/\/([^\/]+)\// +viewer+) (_ host)
       (receive (status hdrs body) (http-get host #`"/getcid?cred=,cred")
         (and (equal? status "200")
-             (string->number body))))))
+             (guard (e [(<read-error> e) #f])
+               (let1 p (read-from-string body)
+                 (and (list? p) (every pair? p) p))))))))
 
-(define (reply-ok name cid)
+(define (reply-ok name params)
   (log-format "authenticated ~a (~a)" name (remote-addr))
   `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8")
     ,(write-to-string
-      `((post-uri . ,+poster+)
-        (comet-uri . ,+viewer+)
-        (cid . ,cid)))))
+      `((post-uri . ,+poster+) (comet-uri . ,+viewer+) ,@params))))
 
 (define (reply-error msg reason)
   (log-format "~a: ~a (~a)" msg reason (remote-addr))
