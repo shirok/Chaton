@@ -1,16 +1,8 @@
 #!/usr/bin/env gosh
 ;; A prototype of API access gateway
 
-;; API key auth scheme
-;; (1) create a list of "NAME=VALUE"
-;; (2) sort the list alphabetically
-;; (3) concatenate all params, plus API key, then calculate md5hash
-;; (4) attach the hash value as "hash=HASHVAL"
-
 (use www.cgi)
 (use rfc.http)
-(use rfc.md5)
-(use util.digest)
 (use file.util)
 (use gauche.logger)
 
@@ -24,12 +16,6 @@
   (cgi-main handle-request)
   0)
 
-(define (reply-error msg reason)
-  (log-format "~a: ~a (~a)" msg reason (remote-addr))
-  (cgi-header :status msg))
-
-(define (remote-addr) (cgi-get-metavariable "REMOTE_ADDR"))
-
 (define (handle-request ps)
   (let1 m (cgi-get-metavariable "REQUEST_METHOD")
     (if (not (equal? m "POST"))
@@ -37,18 +23,18 @@
       (check-login ps))))
 
 (define (check-login ps)
-  (let* ([name  (cgi-get-parameter "name" ps)]
-         [nonce (cgi-get-parameter "nonce" ps)]
-         [hash  (cgi-get-parameter "hash" ps)]
-         [key   (lookup-apikey name)])
-    (cond [(not key)
-           (reply-error "401 Unauthorized" #`"unregistered API user: ,name")]
-          [(not (valid-hash? name nonce hash key))
-           (reply-error "401 Unauthorized"
-                        #`"apikey mismatch (name=,name key=,key)")]
-          [(get-cid key) => (cut reply-ok name <>)]
-          [(reply-error "503 Service Unavailable"
-                        "accesskey calculation failed")])))
+  (let1 who (cgi-get-parameter "who" ps)
+    (cond [(not who) (reply-error "401 Unauthorized" "'who' parameter missing")]
+          [(get-cid) => (cut reply-ok name <>)]
+          [(reply-error "503 Service Unavailable" "couldn't obtain cid")])))
+
+(define (get-cid)
+  (and-let* ([ (file-exists? +credential+) ]
+             [cred (file->string +credential+)])
+    (rxmatch-let (#/\/\/([^\/]+)\// +viewer+) (_ host)
+      (receive (status hdrs body) (http-get host #`"/getcid?cred=,cred")
+        (and (equal? status "200")
+             (string->number body))))))
 
 (define (reply-ok name cid)
   (log-format "authenticated ~a (~a)" name (remote-addr))
@@ -58,19 +44,11 @@
         (comet-uri . ,+viewer+)
         (cid . ,cid)))))
 
-(define (valid-hash? name nonce hash key)
-  (let1 str #`"name=,|name|nonce=,|nonce|,|key|"
-    (equal? hash (digest-hexify (digest-string <md5> str)))))
+(define (reply-error msg reason)
+  (log-format "~a: ~a (~a)" msg reason (remote-addr))
+  (cgi-header :status msg))
 
-(define (get-cid key)
-  (and-let* ([ (file-exists? +credential+) ]
-             [cred (file->string +credential+)])
-    (rxmatch-let (#/\/\/([^\/]+)\// +viewer+) (_ host)
-      (receive (status hdrs body) (http-get host #`"/getcid?cred=,cred")
-        (and (equal? status "200")
-             (string->number body))))))
-
-(define (lookup-apikey name) "guest")   ;for now
+(define (remote-addr) (cgi-get-metavariable "REMOTE_ADDR"))
 
 ;; Local variables:
 ;; mode: scheme
