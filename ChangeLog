@@ -1,3 +1,9 @@
+2009-05-14  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer: Added support for intitial CID generation for API,
+	  robots.txt, and returns some reasonable status for other unsupported
+	  requests.
+
 2009-05-12  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.js (fetchContent): fix handling of disconnecting events.

@@ -27,7 +27,7 @@
 (define (check-login ps)
   (let1 who (cgi-get-parameter "who" ps)
     (cond [(not who) (reply-error "401 Unauthorized" "'who' parameter missing")]
-          [(get-cid) => (cut reply-ok name <>)]
+          [(get-cid) => (cut reply-ok who <>)]
           [(reply-error "503 Service Unavailable" "couldn't obtain cid")])))
 
 (define (get-cid)

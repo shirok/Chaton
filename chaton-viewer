@@ -6,6 +6,7 @@
   (use srfi-1)
   (use srfi-13)
   (use srfi-27)
+  (use srfi-42)
   (use chaton)
   (use gauche.threads)
   (use gauche.net)
@@ -15,6 +16,7 @@
   (use text.html-lite)
   (use text.tree)
   (use rfc.822)
+  (use rfc.uri)
   (use file.util)
   (use util.match)
   (use util.list)
@@ -138,29 +140,36 @@
 
 (define (do-child csock)
   (unwind-protect
-      (guard (e [(eq? e 'eof) (log-child csock "disconnected")]
-                [(eq? e 'dup) (log-child csock "duplicate request")]
+      (guard (e [(eq? e 'disconnected) (log-child csock "disconnected")]
+                [(eq? e 'dup) (log-child csock "duplicate child")]
+                [(eq? e 'processed) #f]
                 [else (log-child csock "error ~s" (ref e'message))])
-        (match-let1 (pos cid sexp?) (get-header csock)
+        (match-let1 (pos cid sexp?) (get-header csock (socket-input-port csock))
           (if pos
             (emit-tail csock pos cid sexp?)
             (emit-skeleton (socket-output-port csock)))))
     (socket-close csock)))
 
 ;; returns the integer parameter given to the query
-(define (get-header csock)
-  (or (and-let* ([in (socket-input-port csock)]
-                 [req (read-line in)]
-                 [ (string? req) ]
-                 [m (#/^GET\s+\/(?:\?(\S+)?)?\s+HTTP\/1.1/i req)]
-                 [p (cond [(m 1) => (cut cgi-parse-parameters :query-string <>)]
-                          [else '()])]
-                 [hdrs (rfc822-header->list in)])
-        (log-child csock "request ~s" req)
-        (list (cgi-get-parameter "p" p :convert string->number) ;pos
-              (cgi-get-parameter "c" p :convert string->number) ;cid
-              (cgi-get-parameter "s" p)))                       ;sexpr?
-      (raise 'eof))) 
+(define (get-header csock in)
+  (let1 req (read-line in)
+    (unless (string? req) (raise 'disconnected))
+    (let1 m (#/^GET\s+\/([^?\s]+)?(?:\?(\S+)?)?\s+HTTP\/1.1/i req)
+      (log-child csock "request ~s" req)
+      (unless m (emit-400 csock))
+      (let ([path (m 1)]
+            [parms (cond [(m 2)=>(cut cgi-parse-parameters :query-string <>)]
+                         [else '()])])
+        (cond
+         [(not path)
+          (list (cgi-get-parameter "p" parms :convert string->number) ;pos
+                (cgi-get-parameter "c" parms :convert string->number) ;cid
+                (cgi-get-parameter "s" parms))]
+         ;; The rest raises 'processed and won't return.
+         [(equal? path "getcid")
+          (emit-cid csock (cgi-get-parameter "cred" parms))]
+         [(equal? path "robots.txt") (emit-robots.txt csock)]
+         [else (emit-404 csock)])))))
 
 ;; NB: it may be more efficient if we send out existing content here,
 ;; instead of letting client to fetch it immediately after this reply.
@@ -169,8 +178,7 @@
   (let1 s (tree->string (make-skeleton (new-client-cid)))
     (write-tree `("HTTP/1.1 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
-                   Content-length: ",(string-size s)"\r\n\r\n"
-                   ,s)
+                   Content-length: ",(string-size s)"\r\n\r\n" ,s)
                 out)
     (flush out)))
 
@@ -254,6 +262,37 @@
       (merge r)
       (loop (tree-map-successor tmap key)
             (cons (tree-map-get tmap key unit) r)))))
+
+;; Other auxiliary contents.  These raises 'processed after emitting content.
+(define (emit-400 csock)
+  (log-child csock "400 Bad Request")
+  (emit-general csock "400 Bad Request" "text/plain" "Bad Request"))
+
+(define (emit-404 csock)
+  (log-child csock "404 Not Found")
+  (emit-general csock "404 Not Found" "text/plain" "Not found"))
+
+(define (emit-robots.txt csock)
+  (log-child csock "200 OK")
+  (emit-general csock "200 OK" "text/plain" "User-Agent: *\nDisallow: /\n"))
+
+(define (emit-cid csock cred)
+  (cond
+   [(equal? cred *server-cred*)
+    (let1 cid (new-client-cid)
+      (log-child csock "getcid OK ~a" cid)
+      (emit-general csock "200 OK" "application/x-sexpr"
+                    (write-to-string `((cid . ,cid) (pos . ,*size*)))))]
+   [else
+    (log-child csock "getcid credential mismatch")
+    (emit-general csock "503" "text/plain" "bad credential")]))
+
+(define (emit-general csock status ctype content)
+  (write-tree `("HTTP/1.1 ",status"\r\n"
+                "Content-type: ",ctype"; charset=utf-8\r\n"
+                "Content-length: ",(string-size content)"\r\n\r\n" ,content)
+              (socket-output-port csock))
+  (raise 'processed))
 
 (define (log-child csock fmt . args)
   (log-format "(~a) ~a"
@@ -347,6 +386,18 @@
       (loop nnc))))
 
 ;;;
+;;;   API authentication
+;;;
+
+(define *server-cred*
+  (string-concatenate
+   (list-ec (: i 3) (number->string (hash (* (random-integer (expt 2 32))
+                                             (sys-time) (sys-getpid)))))))
+
+(define (generate-credential)
+  (with-output-to-file +credential+ (cut display *server-cred*) :atomic #t))
+
+;;;
 ;;;   Content to distribute
 ;;;
 
@@ -388,6 +439,7 @@
                      *pidfile* (ref e'message)))])
     (write-pid))
   (log-format "starting at port ~a" port)
+  (generate-credential)
   (set-signal-handler!
    (sys-sigset SIGHUP SIGINT SIGTERM)
    (lambda (s)
