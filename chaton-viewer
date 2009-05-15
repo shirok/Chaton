@@ -89,10 +89,15 @@
           [last-state (if trunc? #f *last-state*)])
       (receive (entries new-pos) (chaton-read-entries source pos)
         (receive (ttree new-state) (chaton-render entries last-state)
-          (tree-map-put! *sexp-map* pos entries)
+          (tree-map-put! *sexp-map* pos (filter-map xform-entry entries))
           (tree-map-put! *text-map* pos (tree->string ttree))
           (set! *last-state* new-state)
           (set! *size* new-pos))))))
+
+(define (xform-entry entry)
+  (match entry
+    [(nick (sec usec) text . _) `(,nick (,sec ,usec) ,text)]
+    [_ #f]))
 
 ;;;
 ;;;   Status thread
@@ -178,6 +183,7 @@
   (let1 s (tree->string (make-skeleton (new-client-cid)))
     (write-tree `("HTTP/1.1 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
+                   Cache-control: no-cache\r\n\
                    Content-length: ",(string-size s)"\r\n\r\n" ,s)
                 out)
     (flush out)))
@@ -239,6 +245,7 @@
         [out (socket-output-port csock)])
     (format out "HTTP/1.1 200 OK\r\n\
 	         Content-type: application/~a; charset=utf-8\r\n\
+                 Cache-control: no-cache\r\n\
 	         Content-length: ~s\r\n\r\n\
 	         ~a"
             (if sexp? "x-sexpr" "json") (string-size packet) packet)
