@@ -161,6 +161,7 @@
     (unless (string? req) (raise 'disconnected))
     (let1 m (#/^GET\s+\/([^?\s]+)?(?:\?(\S+)?)?\s+HTTP\/1.1/i req)
       (log-child csock "request ~s" req)
+      (rfc822-read-headers in)
       (unless m (emit-400 csock))
       (let ([path (m 1)]
             [parms (cond [(m 2)=>(cut cgi-parse-parameters :query-string <>)]

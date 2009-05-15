@@ -1,3 +1,9 @@
+2009-05-15  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer (get-header): Read request headers.  Without properly
+	  doing that, the timing of reply got screwed and some clients can't
+	  receive proper reply.
+
 2009-05-14  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-viewer: Added support for intitial CID generation for API,
