@@ -42,7 +42,8 @@
 
 (define (reply-ok name params)
   (log-format "authenticated ~a (~a)" name (remote-addr))
-  `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8")
+  `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8"
+                 :cache-control "no-cache")
     ,(write-to-string
       `((post-uri . ,+poster+) (comet-uri . ,+viewer+) ,@params))))
 
