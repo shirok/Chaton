@@ -1,5 +1,7 @@
 2009-05-15  Shiro Kawai  <shiro@acm.org>
 
+	* client/*: Start adding client library.
+
 	* chaton-viewer (get-header): Read request headers.  Without properly
 	  doing that, the timing of reply got screwed and some clients can't
 	  receive proper reply.
