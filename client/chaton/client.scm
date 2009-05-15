@@ -47,8 +47,8 @@
 (define (chaton-log-open path . args)
   (set! *chaton-log-drain* (apply make <log-drain> :path path args)))
 
-;; chaton-connect ROOM-URL APP-NAME OBSERVER => #<chaton-client>
-(define (chaton-connect room-url app-name observer)
+;; chaton-connect ROOM-URL APP-NAME :optional OBSERVER => #<chaton-client>
+(define (chaton-connect room-url app-name :optional (observer #f))
   (receive (post-url comet-url cid pos) (%connect-main room-url app-name)
     (rlet1 client (make <chaton-client>
                   :room-url room-url :observer observer
@@ -70,19 +70,25 @@
 ;;;
 
 (define (make-handler client observer)
-  (define (handle)
-    (let1 r (guard (e [(<chaton-error> e) (observer e)]
+  (define handle (or observer (lambda (_) #f)))
+  (define (loop)
+    (let1 r (guard (e [(<chaton-error> e) (handle e)]
                       [else
                        (set! (~ client'observer-error) e)
                        (log-format *chaton-log-drain*
                                    "observer thread error: ~a" (~ e'message))
                        (raise e)])
-              (observer (%fetch client)))
+              (let1 packet (%fetch client)
+                (and-let* ([new-pos (assq-ref packet 'pos)])
+                  (set! (~ client'pos) new-pos))
+                (and-let* ([new-cid (assq-ref packet 'cid)])
+                  (set! (~ client'cid) new-cid))
+                (handle packet)))
       (when (and (not (null? r)) (list? r))
         (with-locking-mutex (~ client'message-mutex)
           (lambda () (apply enqueue! (~ client'message-queue) r)))))
-    (handle))
-  (thread-start! (make-thread handle)))
+    (loop))
+  (thread-start! (make-thread loop)))
 
 (define (%connect-main room-url who)
   (let1 reply (POST room-url (build-path room-url "apilogin") `((who . ,who)))
