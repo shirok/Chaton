@@ -23,6 +23,7 @@
   (export chaton-connect
           chaton-talk
           chaton-bye
+          chaton-message-dequeue!
           <chaton-error>))
 (select-module chaton.client)
 
@@ -40,6 +41,7 @@
    (observer-error  :init-form #f)
    (message-queue   :init-form (make-queue))
    (message-mutex   :init-form (make-mutex))
+   (message-cv      :init-form (make-condition-variable))
    ))
 
 (define *chaton-log-drain* #f)
@@ -65,6 +67,21 @@
   ;; message-mutex "abandoned" state.
   (cond [(~ client'observer-thread) => thread-terminate!]))
 
+(define (chaton-message-dequeue! client :optional (timeout #f) (timeout-val #f))
+  (let1 mutex (~ client'message-mutex)
+    (guard (e [(<abandoned-mutex-exception> e) '()]
+              [else (when (eq? (mutex-state mutex) (current-thread))
+                      (mutex-unlock! mutex))
+                    (raise e)])
+      (let loop ()
+        (mutex-lock! mutex)
+        (if (queue-empty? (~ client'message-queue))
+          (if (mutex-unlock! mutex (~ client'message-cv) timeout)
+            (loop)
+            timeout-val)
+          (begin0 (dequeue! (~ client'message-queue))
+            (mutex-unlock! mutex)))))))
+
 ;;;
 ;;; Internal stuff
 ;;;
@@ -86,7 +103,9 @@
                 (handle packet)))
       (when (and (not (null? r)) (list? r))
         (with-locking-mutex (~ client'message-mutex)
-          (lambda () (apply enqueue! (~ client'message-queue) r)))))
+          (lambda ()
+            (enqueue! (~ client'message-queue) r)
+            (condition-variable-broadcast! (~ client'message-cv))))))
     (loop))
   (thread-start! (make-thread loop)))
 
