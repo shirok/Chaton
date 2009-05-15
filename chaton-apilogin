@@ -14,6 +14,7 @@
 (define-constant +credential+ "@@server-data-dir@@auth")
 
 (define (main args)
+  (set! (port-buffering (current-error-port)) :line)
   (log-open +logfile+)
   (cgi-main handle-request)
   0)
