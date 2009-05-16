@@ -1,3 +1,8 @@
+2009-05-16  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (render-url): recognize capital letter suffix for images
+	  as well.
+
 2009-05-15  Shiro Kawai  <shiro@acm.org>
 
 	* client/*: Start adding client library.

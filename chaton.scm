@@ -124,7 +124,7 @@
 
 (define (render-url url)
   (rxmatch-case url
-    [#/\.(?:jpg|gif|png)/ () (render-url-image url)]
+    [#/\.(?:jpg|gif|png)/i () (render-url-image url)]
     [#/^http:\/\/(\w{2,3}\.youtube\.com)\/watch\?v=(\w{1,12})/ (_ host vid)
      (render-url-youtube host vid)]
     [#/^http:\/\/www\.nicovideo\.jp\/watch\/(\w{1,13})/ (_ vid)
