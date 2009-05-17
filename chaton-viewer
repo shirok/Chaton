@@ -13,6 +13,8 @@
   (use gauche.logger)
   (use gauche.fcntl)
   (use gauche.process)
+  (use gauche.experimental.ref)
+  (use gauche.experimental.lamb)
   (use text.html-lite)
   (use text.tree)
   (use rfc.822)
@@ -50,8 +52,7 @@
     (spawn-monitor source)
     (spawn-status)
     (spawn-client-tracker)
-    (guard (e [else (log-format "main loop error: ~a" (ref e'message))
-                    (cleanup)])
+    (guard (e [else (log-format "main loop error: ~a" (~ e'message)) (cleanup)])
       (while #t (spawn-child (socket-accept server-sock))))))
 
 ;;;
@@ -66,16 +67,17 @@
   (thread-start! (make-thread (cut do-monitor source))))
 
 (define (do-monitor source)
-  (guard (e [else (log-format "monitor error: ~s" (ref e'message))])
+  (guard (e [else (log-format "monitor error: ~s" (~ e'message))])
     (while #t
       (and (file-exists? source)
-           (let1 s (file-size source)
-             (mutex-lock! *mutex*)
-             (unless (or (not s) (not *size*) (= s *size*))
-               (log-format "monitor: source extended to ~s" s)
-               (pull-text! source (< s *size*))
-               (condition-variable-broadcast! *cv*))
-             (mutex-unlock! *mutex*)))
+           (chaton-with-shared-locking
+            (^() (let1 s (file-size source)
+                   (mutex-lock! *mutex*)
+                   (unless (or (not s) (not *size*) (= s *size*))
+                     (log-format "monitor: source extended to ~s" s)
+                     (pull-text! source (< s *size*))
+                     (condition-variable-broadcast! *cv*))
+                   (mutex-unlock! *mutex*)))))
       (sys-sleep 1)))
   (do-monitor source))
 
@@ -96,8 +98,7 @@
 
 (define (xform-entry entry)
   (match entry
-    [(nick (sec usec) text . _) `(,nick (,sec ,usec) ,text)]
-    [_ #f]))
+    [(nick (sec usec) text . _) `(,nick (,sec ,usec) ,text)] [_ #f]))
 
 ;;;
 ;;;   Status thread
@@ -106,7 +107,7 @@
 (define (spawn-status) (thread-start! (make-thread do-status)))
 
 (define (do-status)
-  (guard (e [else (log-format "status error: ~s" (ref e'message))])
+  (guard (e [else (log-format "status error: ~s" (~ e'message))])
     (let loop ((mtimes #f))
       (let1 mtimes1
           (map file-mtime `(,+sequence-file+ ,+last-post-file+ ,+num-chatters-file+))
@@ -125,16 +126,14 @@
 
 (define (write-status-js s l n)
   (with-output-to-file +status.js+
-    (lambda () 
-      (format #t "{\"last-post\":~s,\"num-chatters\":~s,\"post-sequence\":~s}"
-              l n s))
+    (cut format #t "{\"last-post\":~s,\"num-chatters\":~s,\"post-sequence\":~s}"
+         l n s)
     :atomic #t))
 
 (define (write-status-scm s l n)
   (with-output-to-file +status.scm+
-    (lambda ()
-      (for-each (lambda (x) (write x) (newline))
-                `((last-post ,l) (num-chatters ,n) (post-sequence ,s))))
+    (cut for-each (^(x) (write x) (newline))
+         `((last-post ,l) (num-chatters ,n) (post-sequence ,s)))
     :atomic #t))
 
 ;;;
@@ -148,7 +147,7 @@
       (guard (e [(eq? e 'disconnected) (log-child csock "disconnected")]
                 [(eq? e 'dup) (log-child csock "duplicate child")]
                 [(eq? e 'processed) #f]
-                [else (log-child csock "error ~s" (ref e'message))])
+                [else (log-child csock "error ~s" (~ e'message))])
         (match-let1 (pos cid sexp?) (get-header csock (socket-input-port csock))
           (if pos
             (emit-tail csock pos cid sexp?)
@@ -164,7 +163,7 @@
       (rfc822-read-headers in)
       (unless m (emit-400 csock))
       (let ([path (m 1)]
-            [parms (cond [(m 2)=>(cut cgi-parse-parameters :query-string <>)]
+            [parms (cond [(m 2) => (cut cgi-parse-parameters :query-string <>)]
                          [else '()])])
         (cond
          [(not path)
@@ -218,8 +217,7 @@
             [(< time-started (- (sys-time) (+ 240 (random-integer 120))))
              (mutex-unlock! *mutex*)
              (send-ping csock ncid pos sexp?)] ; hard timeout
-            [(and-let* ([ccnt2 (get-num-clients)]
-                        [ (not (= ccnt ccnt2)) ])
+            [(and-let* ([ccnt2 (get-num-clients)] [ (not (= ccnt ccnt2)) ])
                (mutex-unlock! *mutex*)
                (send-ping csock ncid pos sexp?) #t)] ; soft timeout, ccnt change
             [else (loop)])]
@@ -264,12 +262,9 @@
   (define tmap (if sexp? *sexp-map* *text-map*))
   (define unit (if sexp? '() ""))
   (define merge (if sexp? (.$ concatenate reverse) string-concatenate-reverse))
-  (let loop ([key start]
-             [r   '()])
-    (if (not key)
-      (merge r)
-      (loop (tree-map-successor tmap key)
-            (cons (tree-map-get tmap key unit) r)))))
+  (do ([key start (tree-map-successor tmap key)]
+       [r '() (cons (tree-map-get tmap key unit) r)])
+      [(not key) (merge r)]))
 
 ;; Other auxiliary contents.  These raises 'processed after emitting content.
 (define (emit-400 csock)
@@ -285,15 +280,14 @@
   (emit-general csock "200 OK" "text/plain" "User-Agent: *\nDisallow: /\n"))
 
 (define (emit-cid csock cred)
-  (cond
-   [(equal? cred *server-cred*)
+  (if (equal? cred *server-cred*)
     (let1 cid (new-client-cid)
       (log-child csock "getcid OK ~a" cid)
       (emit-general csock "200 OK" "application/x-sexpr"
-                    (write-to-string `((cid . ,cid) (pos . ,*size*)))))]
-   [else
-    (log-child csock "getcid credential mismatch")
-    (emit-general csock "503" "text/plain" "bad credential")]))
+                    (write-to-string `((cid . ,cid) (pos . ,*size*)))))
+    (begin
+      (log-child csock "getcid credential mismatch")
+      (emit-general csock "503" "text/plain" "bad credential"))))
 
 (define (emit-general csock status ctype content)
   (write-tree `("HTTP/1.1 ",status"\r\n"
@@ -338,10 +332,10 @@
 (define (cid-timestamp entry)     (cdr entry))
 
 (define (%allocate-cid init?)
-  (let loop ([cid (random-integer CID_MAX)])
-    (cond [(hash-table-get *clnt-table* cid #f) (loop (random-integer CID_MAX))]
-          [else (hash-table-put! *clnt-table* cid (make-cid-entry (not init?)))
-                cid])))
+  (do ([cid (random-integer CID_MAX) (random-integer CID_MAX)])
+      [(not (hash-table-exists? *clnt-table* cid))
+       (hash-table-put! *clnt-table* cid (make-cid-entry (not init?)))
+       cid]))
 
 (define (new-client-cid)
   (with-locking-mutex *clnt-mutex* (cut %allocate-cid #t)))
@@ -349,36 +343,31 @@
 ;; returns cid, possibly new one if the provided one is obsolete.
 (define (client-connected csock cid)
   (with-locking-mutex *clnt-mutex*
-    (lambda ()
-      (cond [(hash-table-get *clnt-table* cid #f)
-             => (lambda (e)
-                  (if (cid-waiting? e) ; this is a duplicate request.
-                    (raise 'dup)
-                    (begin (cid-mark-waiting! e) cid)))]
-            [else
-             (rlet1 ncid (%allocate-cid #f)
-               (log-child csock "child has unknown cid: ~a, reallocating ~a"
-                          cid ncid))]))))
+    (^() (if-let1 e (hash-table-get *clnt-table* cid #f)
+           (if (cid-waiting? e) ; this is a duplicate request.
+             (raise 'dup)
+             (begin (cid-mark-waiting! e) cid))
+           (rlet1 ncid (%allocate-cid #f)
+             (log-child csock "child has unknown cid: ~a, reallocating ~a"
+                        cid ncid))))))
 
 (define (client-replied csock cid)
   (with-locking-mutex *clnt-mutex*
-    (lambda ()
-      (cond [(hash-table-get *clnt-table* cid #f) => cid-unmark-waiting!]
-            [else (log-child csock "child has unknown cid: ~a" cid)]))))
+    (^() (cond [(hash-table-get *clnt-table* cid #f) => cid-unmark-waiting!]
+               [else (log-child csock "child has unknown cid: ~a" cid)]))))
 
 (define (get-num-clients)
   (with-locking-mutex *clnt-mutex* (cut hash-table-num-entries *clnt-table*)))
 
 (define (client-sweep!)
   (with-locking-mutex *clnt-mutex*
-    (lambda ()
-      (let1 lim (- (sys-time) CLNT_TIMEOUT)
-        (hash-table-for-each
-         *clnt-table*
-         (lambda (k v)
-           (when (and (not (cid-waiting? v)) (<= (cid-timestamp v) lim))
-             (log-format "client ~a gone" k)
-             (hash-table-delete! *clnt-table* k))))))))
+    (^() (let1 lim (- (sys-time) CLNT_TIMEOUT)
+           (hash-table-for-each
+            *clnt-table*
+            (^(k v)
+              (when (and (not (cid-waiting? v)) (<= (cid-timestamp v) lim))
+                (log-format "client ~a gone" k)
+                (hash-table-delete! *clnt-table* k))))))))
 
 (define (spawn-client-tracker)
   (thread-start! (make-thread client-tracker)))
@@ -386,7 +375,7 @@
 (define (client-tracker)
   (let loop ((nc (get-num-clients)))
     (sys-sleep 1)
-    (guard (e [else (log-format "tracker: ~a" (ref e'message))])
+    (guard (e [else (log-format "tracker: ~a" (~ e'message))])
       (client-sweep!))
     (let1 nnc (get-num-clients)
       (unless (= nc nnc)
@@ -444,22 +433,20 @@
                (unless (= pid (sys-getpid))
                  (exit 1 "@@comet-script@@ seems already running (pid ~a)." pid))
                (exit 1 "@@comet-script@@ can't write pidfile (~a): ~a"
-                     *pidfile* (ref e'message)))])
+                     *pidfile* (~ e'message)))])
     (write-pid))
   (log-format "starting at port ~a" port)
   (generate-credential)
   (set-signal-handler!
    (sys-sigset SIGHUP SIGINT SIGTERM)
-   (lambda (s)
-     (log-format "exitting by signal ~a" (sys-signal-name s))
-     (cleanup))))
+   (^(s) (log-format "exitting by signal ~a" (sys-signal-name s)) (cleanup))))
 
 (define (cleanup) (sys-unlink *pidfile*) (exit 0))
 
 (define (shutdown-viewer-server quiet?)
   (if-let1 pid (read-pid)
     (guard (e [(<system-error> e)
-               (exit 1 "Killing @@comet-script@@ failed: ~a" (ref e'message))])
+               (exit 1 "Killing @@comet-script@@ failed: ~a" (~ e'message))])
       (sys-kill pid SIGINT)
       (unless quiet? (print "@@comet-script@@ pid "pid" is killed.")))
     (unless quiet? (print "@@comet-script@@ isn't running."))))
@@ -494,11 +481,10 @@
            (or (guard (e [(<system-error> e) #f])
                  (call-with-client-socket
                      (make-client-socket 'inet "localhost" port)
-                   (lambda (in out)
+                   (^(in out)
                      (display "GET / HTTP/1.1\r\nhost: localhost\r\n\r\n" out)
                      (flush out)
-                     (port->string in)
-                     #t)))
+                     (port->string in))))
                (loop (+ n 1)))])))
 
 ;;;===================================================================

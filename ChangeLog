@@ -1,5 +1,9 @@
 2009-05-17  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-viewer (do-monitor): use read-lock while checking the size,
+	  to avoid the hazard if the active log is truncated during checking.
+	  Also touched sources for clearity.
+
 	* chaton.js, chaton-viewer: Changed json/s-expr field name of the
 	  comet reply packet from 'text' to 'content'.
 
