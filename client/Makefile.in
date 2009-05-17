@@ -33,7 +33,7 @@ ARCHFILES =
 SCMFILES  = chaton/client.scm
 HEADERS   = 
 
-CONFIG_GENERATED = Makefile config.cache config.log config.status VERSION \
+CONFIG_GENERATED = Makefile config.cache config.log config.status \
 		   configure.lineno autom4te*.cache $(PACKAGE).gpd
 
 HEADER_INSTALL_DIR  = $(DESTDIR)`$(GAUCHE_CONFIG) --siteincdir`
@@ -62,4 +62,4 @@ distclean : clean
 	rm -rf $(CONFIG_GENERATED)
 
 maintainer-clean : clean
-	rm -rf $(CONFIG_GENERATED) configure
+	rm -rf $(CONFIG_GENERATED) VERSION DIST_EXCLUDE_X configure
