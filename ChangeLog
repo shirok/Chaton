@@ -1,3 +1,8 @@
+2009-05-17  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.js, chaton-viewer: Changed json/s-expr field name of the
+	  comet reply packet from 'text' to 'content'.
+
 2009-05-16  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (render-url): recognize capital letter suffix for images

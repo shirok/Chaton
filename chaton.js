@@ -116,7 +116,7 @@ function fetchMessageCount() {
       method: 'get',
       evalJSON: false,
       onSuccess: fetchMessageCountCB,
-      onException: function (r,e) { messageMonitorStop(); }
+      onFailure: function (r,e) { messageMonitorStop(); }
     });
 }
 
@@ -132,7 +132,7 @@ function fetchMessageCountCB(t) {
     currentMessageNum = cnt;
   }
   setTitle();
-  setTimeout(fetchMessageCount, 7000);
+  setTimeout(fetchMessageCount, 15000);
 }
 
 // Initialization -------------------------------------
@@ -196,7 +196,7 @@ function insertContent(json, cid) {
     } else if (!isViewingBottom()) {
         need_scroll = false;
     }
-    $('view-pane').insert(json.text);
+    $('view-pane').insert(json.content);
     var pos_changed = (pos != json.pos);
     pos = json.pos;
     if (need_scroll) scrollToBottom();

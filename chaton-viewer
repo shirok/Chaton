@@ -256,8 +256,8 @@
   (if sexp?
     (write-to-string
      `((pos . ,pos) (nc . ,(get-num-clients)) (ver . "@@version@@")
-       (cid . ,cid) (text . ,(or content '()))))
-    (format "{\"pos\":~s,\"nc\":~s,\"ver\":~s,\"cid\":~s,\"text\":~s}"
+       (cid . ,cid) (content . ,(or content '()))))
+    (format "{\"pos\":~s,\"nc\":~s,\"ver\":~s,\"cid\":~s,\"content\":~s}"
             pos (get-num-clients) "@@version@@" cid (or content ""))))
 
 (define (content-retrieve start sexp?)
