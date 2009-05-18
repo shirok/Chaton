@@ -1,3 +1,9 @@
+2009-05-18  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-viewer: Changed format of S-expr version of status
+	  to an alist for consistency of other parts that treat json/sexpr.
+	* chaton-badge: adapted to the above change.
+
 2009-05-17  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-apilogin: Returns icon url as well.

@@ -6,6 +6,7 @@
   (use chaton)
   (use www.cgi)
   (use file.util)
+  (use util.list)
   (use text.html-lite)
   (export badge-main))
 (select-module chaton.badge)
@@ -15,13 +16,15 @@
    (lambda (_)
      `(,(cgi-header :content-type "text/javascript; charset=utf-8"
                     :cache-control "no-cache")
-       ,(build-badge (or (file->sexp-list +status.scm+ :if-does-not-exist #f)
-                         '()))))))
+       ,(build-badge
+         (if-let1 p (file->sexp-list +status.scm+ :if-does-not-exist #f)
+           (car p)
+           '()))))))
 
 (define (build-badge status)
-  (let ([last-update (cond [(assq 'last-post status) => how-long-ago]
+  (let ([last-update (cond [(assq-ref status 'last-post) => how-long-ago]
                            [else "no known updates"])]
-        [chatters (cond [(assq 'num-chatters status) => cadr] [else 0])]
+        [chatters (assq-ref status 'num-chatters 0)]
         [tip (html-escape-string "Start chatting in @@room-name@@")])
     `("document.write('"
       "<style type=\"text/css\">"
@@ -56,7 +59,7 @@
   (define (pl x) (if (= x 1) "" "s"))
   (define (f x unit scale)
     (let1 c (quotient x scale) (format "~a ~a~a ago" c unit (pl c))))
-  (let1 dt (- (sys-time) (cadr last))
+  (let1 dt (- (sys-time) last)
     (cond
      [(< dt 60)     (f dt "second" 1)]
      [(< dt 3600)   (f dt "minute" 60)]
