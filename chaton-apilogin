@@ -11,6 +11,7 @@
 (define-constant +logfile+ "@@server-data-dir@@/logs/api.log")
 (define-constant +poster+  "@@httpd-url@@@@url-path@@@@cgi-script@@")
 (define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
+(define-constant +icon+    "@@icon-url@@")
 (define-constant +credential+ "@@server-data-dir@@auth")
 
 (define (main args)
@@ -46,7 +47,8 @@
   `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8"
                  :cache-control "no-cache")
     ,(write-to-string
-      `((post-uri . ,+poster+) (comet-uri . ,+viewer+) ,@params))))
+      `((post-uri . ,+poster+) (comet-uri . ,+viewer+)
+        (icon-uri . ,+icon+) ,@params))))
 
 (define (reply-error msg reason)
   (log-format "~a: ~a (~a)" msg reason (remote-addr))

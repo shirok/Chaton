@@ -1,5 +1,8 @@
 2009-05-17  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-apilogin: Returns icon url as well.
+	* client/chaton/client.scm (<chaton-client>): Added icon-url slot.
+
 	* chaton-viewer (do-monitor): use read-lock while checking the size,
 	  to avoid the hazard if the active log is truncated during checking.
 	  Also touched sources for clearity.

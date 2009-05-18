@@ -35,6 +35,7 @@
    (observer  :init-keyword :observer)
    (post-url  :init-keyword :post-url)
    (comet-url :init-keyword :comet-url)
+   (icon-url  :init-keyword :icon-url)
    (cid       :init-keyword :cid)
    (pos       :init-keyword :pos)
    (observer-thread :init-form #f)
@@ -51,10 +52,11 @@
 
 ;; chaton-connect ROOM-URL APP-NAME :optional OBSERVER => #<chaton-client>
 (define (chaton-connect room-url app-name :optional (observer #f))
-  (receive (post-url comet-url cid pos) (%connect-main room-url app-name)
+  (receive (post comet icon cid pos) (%connect-main room-url app-name)
     (rlet1 client (make <chaton-client>
-                  :room-url room-url :observer observer
-                  :post-url post-url :comet-url comet-url :cid cid :pos pos)
+                    :room-url room-url :observer observer
+                    :post-url post :comet-url comet :icon-url icon
+                    :cid cid :pos pos)
       (set! (~ client'observer-thread) (make-handler client observer)))))
 
 (define (chaton-talk client nickname text)
@@ -113,6 +115,7 @@
   (let1 reply (POST room-url (build-path room-url "apilogin") `((who . ,who)))
     (values (assq-ref reply 'post-uri)
             (assq-ref reply 'comet-uri)
+            (assq-ref reply 'icon-uri)
             (assq-ref reply 'cid)
             (assq-ref reply 'pos))))
 
