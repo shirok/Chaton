@@ -8,11 +8,15 @@
   (use text.tree)
   (use file.util)
   (use util.match)
+  (use util.list)
   (use gauche.fcntl)
   (use gauche.sequence)
+  (use gauche.experimental.lamb)
   (export chaton-render chaton-read-entries
           chaton-render-from-file
           chaton-with-shared-locking chaton-with-exclusive-locking
+
+          chaton-alist->stree
 
           +datadir+
           +current-file+
@@ -24,9 +28,9 @@
           with-output-to-file))
 (select-module chaton)
 
-(define *archivepath* "@@httpd-url@@@@url-path@@a/")
-
 ;;; Some common constants
+(define-constant +archivepath+ "@@httpd-url@@@@url-path@@a/")
+
 (define-constant +datadir+ (or (sys-getenv "CHATON_DATADIR")
                                "@@server-data-dir@@data"))
 (define-constant +current-file+ (build-path +datadir+ "current.dat"))
@@ -59,11 +63,19 @@
 ;; returns <text-tree>, new-state, and new POS.
 (define (chaton-render-from-file file pos last-state)
   (receive (es pos) (chaton-read-entries file pos)
-    (receive (tree new-state) (chaton-render es (ensure-state last-state))
+    (receive (tree new-state) (chaton-render es last-state)
       (values tree new-state pos))))
 
+;; Utility; render alist into S-expr or Json.  Assuming keys are symbols.
+(define (chaton-alist->stree alist sexp?)
+  (if sexp?
+    (write-to-string alist)
+    `("{",(intersperse "," (map (^(p)`(,(write-to-string (x->string (car p)))
+                                       ":",(write-to-string (cdr p))))
+                                alist))"}")))
+
 ;;;
-;;;  Rendering
+;;;  rendering
 ;;;
 
 (define (ensure-state last-state) ; bridge to support backward compat. 
@@ -102,25 +114,22 @@
               (make-state nick ip sec)))))
 
 (define (make-permalink sec anchor)
-  (build-path *archivepath*
+  (build-path +archivepath+
               (format "~a#~a"
                       (sys-strftime "%Y/%m/%d" (sys-localtime sec))
                       anchor)))
 
-(define *url-rx*
-  #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s]*(\?[^#\s]*)?(#\S*)?)/)
+(define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s]*(\?[^#\s]*)?(#\S*)?)/)
 
 (define (safe-text text)
-  (let loop ([s text] 
-             [r '()])
-    (cond [(string-null? s) (reverse r)]
-          [(*url-rx* s)
-           => (lambda (m)
-                (loop (m 'after)
-                      (list* (render-url (m 0))
-                             (html-escape-string (m 'before))
-                             r)))]
-          [else (reverse (cons (html-escape-string s) r))])))
+  (let loop ([s text] [r '()])
+    (cond
+     [(string-null? s) (reverse r)]
+     [(*url-rx* s)
+      => (^(m)
+           (loop (m'after)
+                 `(,(render-url (m 0)),(html-escape-string (m'before)),@r)))]
+     [else (reverse (cons (html-escape-string s) r))])))
 
 (define (render-url url)
   (rxmatch-case url
@@ -187,30 +196,24 @@
 
 (define (ensure-lockfile)
   (unless (file-exists? *lockfile*)
-    (with-output-to-file *lockfile*
-      (lambda () (display "lockfile\n"))
-      :if-does-not-exist :create
-      :if-exists #f)))
+    (with-output-to-file *lockfile* (cut display "lockfile\n")
+                         :if-does-not-exist :create :if-exists #f)))
 
 ;; Read the source file from offset START, and returns a list of
 ;; lines and the updated offset that points the end of the source file.
 (define (read-diff source start)
   (chaton-with-shared-locking
-   (lambda ()
-     (call-with-input-file source
-       (lambda (in)
-         (cond [in
-                (port-seek in start)
-                (let1 tx (port->string-list in)
-                  (values tx (port-tell in)))]
-               [else (values "" 0)]))
-       :if-does-not-exist #f))))
+   (cut call-with-input-file source
+        (^(in) (cond [in (port-seek in start)
+                         (let1 tx (port->string-list in)
+                           (values tx (port-tell in)))]
+                     [else (values "" 0)]))
+        :if-does-not-exist #f)))
 
 (define (safe-read line)
   (guard (e [(<read-error> e) #f]) (read-from-string line)))
 
-(define (safe-lines->sexps lines)
-  (filter pair? (map safe-read lines)))
+(define (safe-lines->sexps lines) (filter pair? (map safe-read lines)))
 
 ;;;
 ;;;  Misc. Utility
@@ -219,11 +222,10 @@
 ;; This feature should be built-in!
 
 (define (with-output-to-file file thunk . args)
-  (let1 atomic (get-keyword :atomic args #f)
-    (if atomic
-      (let1 tmp #`",|file|.tmp"
-        (guard (e [else (sys-unlink tmp) (raise e)])
-          (apply (with-module gauche with-output-to-file)
-                 tmp thunk (delete-keyword :atomic args))
-          (sys-rename tmp file)))
-      (apply (with-module gauche with-output-to-file) file thunk args))))
+  (if-let1 atomic (get-keyword :atomic args #f)
+    (let1 tmp #`",|file|.tmp"
+      (guard (e [else (sys-unlink tmp) (raise e)])
+        (apply (with-module gauche with-output-to-file)
+               tmp thunk (delete-keyword :atomic args))
+        (sys-rename tmp file)))
+    (apply (with-module gauche with-output-to-file) file thunk args)))

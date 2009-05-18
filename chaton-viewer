@@ -1,4 +1,7 @@
 #!/usr/bin/env gosh
+;;;
+;;;  Comet daemon
+;;;
 
 (add-load-path "@@server-data-dir@@")
 
@@ -121,19 +124,14 @@
         [l (x->integer (file->string +last-post-file+ :if-does-not-exist #f))]
         [n (x->integer (file->string +num-chatters-file+ :if-does-not-exist #f))])
     (make-directory* (sys-dirname +status.js+)) ;ensure dir
-    (write-status-js s l n)
-    (write-status-scm s l n)))
+    (write-status s l n #t) (write-status s l n #f)))
 
-(define (write-status-js s l n)
-  (with-output-to-file +status.js+
-    (cut format #t "{\"last-post\":~s,\"num-chatters\":~s,\"post-sequence\":~s}"
-         l n s)
-    :atomic #t))
-
-(define (write-status-scm s l n)
-  (with-output-to-file +status.scm+
-    (cut for-each (^(x) (write x) (newline))
-         `((last-post ,l) (num-chatters ,n) (post-sequence ,s)))
+(define (write-status s l n sexp?)
+  (with-output-to-file (if sexp? +status.scm+ +status.js+)
+    (cut write-tree
+         (chaton-alist->stree
+          `((last-post . ,l) (num-chatters . ,n) (post-sequence . ,s))
+          sexp?))
     :atomic #t))
 
 ;;;
@@ -161,20 +159,18 @@
     (let1 m (#/^GET\s+\/([^?\s]+)?(?:\?(\S+)?)?\s+HTTP\/1.1/i req)
       (log-child csock "request ~s" req)
       (rfc822-read-headers in)
-      (unless m (emit-400 csock))
+      (unless m (emit-plain csock "400" "Bad Request"))
       (let ([path (m 1)]
             [parms (cond [(m 2) => (cut cgi-parse-parameters :query-string <>)]
                          [else '()])])
-        (cond
-         [(not path)
-          (list (cgi-get-parameter "p" parms :convert string->number) ;pos
-                (cgi-get-parameter "c" parms :convert string->number) ;cid
-                (cgi-get-parameter "s" parms))]
+        (rxmatch-case path
+         [test not `(,(cgi-get-parameter "p" parms :convert string->number) ;pos
+                     ,(cgi-get-parameter "c" parms :convert string->number) ;cid
+                     ,(cgi-get-parameter "s" parms))]
          ;; The rest raises 'processed and won't return.
-         [(equal? path "getcid")
-          (emit-cid csock (cgi-get-parameter "cred" parms))]
-         [(equal? path "robots.txt") (emit-robots.txt csock)]
-         [else (emit-404 csock)])))))
+         [#/^getcid$/ () (emit-cid csock (cgi-get-parameter "cred" parms))]
+         [#/^robots\.txt$/ () (emit-robots.txt csock)]
+         [else (emit-plain csock "404" "Not Found")])))))
 
 ;; NB: it may be more efficient if we send out existing content here,
 ;; instead of letting client to fetch it immediately after this reply.
@@ -184,7 +180,7 @@
     (write-tree `("HTTP/1.1 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
                    Cache-control: no-cache\r\n\
-                   Content-length: ",(string-size s)"\r\n\r\n" ,s)
+                   Content-length: ",(string-size s)"\r\n\r\n",s)
                 out)
     (flush out)))
 
@@ -207,8 +203,7 @@
   (define ncid (client-connected csock cid)) ; possibly update cid
   (let loop ()
     (mutex-lock! *mutex*)
-    (cond [(equal? pos *size*)
-           ;; wait until *size* changes or timeout
+    (cond [(equal? pos *size*)  ; wait until *size* changes or timeout
            (cond
             [(not (eqv? ncid cid)) ; this is reconnection after server restart.
              (mutex-unlock! *mutex*)
@@ -240,23 +235,19 @@
 
 (define (send-reply csock cid pos content sexp?)
   (client-replied csock cid)
-  (let ([packet (make-packet cid pos content sexp?)]
+  (let ([packet (tree->string (make-packet cid pos content sexp?))]
         [out (socket-output-port csock)])
-    (format out "HTTP/1.1 200 OK\r\n\
-	         Content-type: application/~a; charset=utf-8\r\n\
-                 Cache-control: no-cache\r\n\
-	         Content-length: ~s\r\n\r\n\
-	         ~a"
-            (if sexp? "x-sexpr" "json") (string-size packet) packet)
+    (write-tree `("HTTP/1.1 200 OK\r\n\
+      Content-type: application/",(if sexp? "x-sexpr" "json")"; charset=utf-8\r\n\
+      Cache-control: no-cache\r\n\
+      Content-length: ",(string-size packet)"\r\n\r\n",packet) out)
     (flush out)))
 
 (define (make-packet cid pos content sexp?)
-  (if sexp?
-    (write-to-string
-     `((pos . ,pos) (nc . ,(get-num-clients)) (ver . "@@version@@")
-       (cid . ,cid) (content . ,(or content '()))))
-    (format "{\"pos\":~s,\"nc\":~s,\"ver\":~s,\"cid\":~s,\"content\":~s}"
-            pos (get-num-clients) "@@version@@" cid (or content ""))))
+  (chaton-alist->stree
+   `((pos . ,pos) (nc . ,(get-num-clients)) (ver . "@@version@@")
+     (cid . ,cid) (content . ,(or content (if sexp? '() ""))))
+   sexp?))
 
 (define (content-retrieve start sexp?)
   (define tmap (if sexp? *sexp-map* *text-map*))
@@ -267,13 +258,9 @@
       [(not key) (merge r)]))
 
 ;; Other auxiliary contents.  These raises 'processed after emitting content.
-(define (emit-400 csock)
-  (log-child csock "400 Bad Request")
-  (emit-general csock "400 Bad Request" "text/plain" "Bad Request"))
-
-(define (emit-404 csock)
-  (log-child csock "404 Not Found")
-  (emit-general csock "404 Not Found" "text/plain" "Not found"))
+(define (emit-plain csock stat desc)
+  (log-child csock #`",stat ,desc")
+  (emit-general csock stat "text/plain" desc))
 
 (define (emit-robots.txt csock)
   (log-child csock "200 OK")
@@ -290,9 +277,9 @@
       (emit-general csock "503" "text/plain" "bad credential"))))
 
 (define (emit-general csock status ctype content)
-  (write-tree `("HTTP/1.1 ",status"\r\n"
-                "Content-type: ",ctype"; charset=utf-8\r\n"
-                "Content-length: ",(string-size content)"\r\n\r\n" ,content)
+  (write-tree `("HTTP/1.1 ",status"\r\n\
+                Content-type: ",ctype"; charset=utf-8\r\n\
+                Content-length: ",(string-size content)"\r\n\r\n",content)
               (socket-output-port csock))
   (raise 'processed))
 
