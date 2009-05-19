@@ -1,7 +1,18 @@
 2009-05-18  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-viewer (client-connected, do-child): Changed treatment of
+	  duplicate request; the most likely scenario of dup request is that
+	  the intermediate node timeouts during comet keep the request waiting.
+	  Comet thinks the connection is held, while the client sees it is
+	  disconnected and resend the request.  Now, when we detect dup,
+	  we immediately discard the dup cid and reallocate new one, and
+	  proceed normal comet treatment on the new cid.  The original request
+	  eventually soft-timeouts, checks if cid is still valid, and aborts
+	  if the cid is invalidated (because of the dup request).
+
 	* chaton-viewer: Changed format of S-expr version of status
 	  to an alist for consistency of other parts that treat json/sexpr.
+
 	* chaton-badge: adapted to the above change.
 
 2009-05-17  Shiro Kawai  <shiro@acm.org>

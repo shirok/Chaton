@@ -143,7 +143,7 @@
 (define (do-child csock)
   (unwind-protect
       (guard (e [(eq? e 'disconnected) (log-child csock "disconnected")]
-                [(eq? e 'dup) (log-child csock "duplicate child")]
+                [(eq? e 'dup) (log-child csock "abandoned for dup request")]
                 [(eq? e 'processed) #f]
                 [else (log-child csock "error ~s" (~ e'message))])
         (match-let1 (pos cid sexp?) (get-header csock (socket-input-port csock))
@@ -209,6 +209,8 @@
              (mutex-unlock! *mutex*)
              (send-ping csock ncid pos sexp?)]
             [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15))) (loop)]
+            [(not (valid-cid? ncid)) ; client already reconnected. abandon self.
+             (raise 'dup)]
             [(< time-started (- (sys-time) (+ 240 (random-integer 120))))
              (mutex-unlock! *mutex*)
              (send-ping csock ncid pos sexp?)] ; hard timeout
@@ -327,12 +329,18 @@
 (define (new-client-cid)
   (with-locking-mutex *clnt-mutex* (cut %allocate-cid #t)))
 
+(define (valid-cid? cid)
+  (with-locking-mutex *clnt-mutex* (cut hash-table-exists? *clnt-table* cid)))
+
 ;; returns cid, possibly new one if the provided one is obsolete.
 (define (client-connected csock cid)
   (with-locking-mutex *clnt-mutex*
     (^() (if-let1 e (hash-table-get *clnt-table* cid #f)
            (if (cid-waiting? e) ; this is a duplicate request.
-             (raise 'dup)
+             (rlet1 ncid (%allocate-cid #f)
+               (log-child csock "obsoleting dup cid: ~a; reallocating ~a"
+                          cid ncid)
+               (hash-table-delete! *clnt-table* cid))
              (begin (cid-mark-waiting! e) cid))
            (rlet1 ncid (%allocate-cid #f)
              (log-child csock "child has unknown cid: ~a, reallocating ~a"
