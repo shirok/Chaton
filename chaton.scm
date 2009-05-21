@@ -119,7 +119,7 @@
                       (sys-strftime "%Y/%m/%d" (sys-localtime sec))
                       anchor)))
 
-(define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s]*(\?[^#\s]*)?(#\S*)?)/)
+(define *url-rx* #/https?:(\/\/[-.~\w:]*)?[^\x00-$&-,\;=@\[-^`{-}\x7f]*(\?[^\x00-$&-,\;->@\[-^`{-}\x7f]*)?(#[^\x00-\"$&-,\;->@\[-^`{-}\x7f]*)?/)
 
 (define (safe-text text)
   (let loop ([s text] [r '()])

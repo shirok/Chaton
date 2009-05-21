@@ -1,3 +1,7 @@
+2009-05-20  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (*url-rx*): Better regex to capture url.
+
 2009-05-18  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-viewer (client-connected, do-child): Changed treatment of
