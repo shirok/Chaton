@@ -170,9 +170,10 @@
     0))
 
 (define (usage argv0)
-  (exit 1 #`"Usage: ,argv0 [-q|quiet] [date]\
+  (exit 1 #`"Usage: ,argv0 [options] [date]\
    \nOptions:\
-   \n -q, --quiet    Operate quietly.\n"))
+   \n -q, --quiet         Operate quietly.\
+   \n -l, --logfile=FILE  Specify an alternative logfile.\n"))
 
 ;;;
 ;;; Date utilities
