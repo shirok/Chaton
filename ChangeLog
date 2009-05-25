@@ -1,3 +1,12 @@
+2009-05-25  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton): added +logdir+ constant.
+	* chaton-archiver: Emit log to $DATADIR/logs/archive.log.
+	  Revised using common constants in the chaton module for
+	  the directories.
+
+	* README: updated to reflect addition of new scripts.
+
 2009-05-20  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (*url-rx*): Better regex to capture url.

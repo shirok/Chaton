@@ -39,6 +39,15 @@ Files:
     chaton-archiver  This is a script file that archives message
           logs.  This script must be run daily.
 
+    chaton-badge    This is a CGI script that generates "badge"
+          of the room.  When installed, this script becomes 'b',
+          for conciseness.
+
+    chaton-apilogin  This is a CGI script where the client programs
+          first contact through API.  When installed, this script
+          becomes 'apilogin'.
+
+
  The following files are to consist the client-side contents:
 
     chaton.html   This is the outer HTML that defines the basic
@@ -88,6 +97,8 @@ Directory structure:
     $DATADIR/logs/comet.log  Access log file from the Comet server
                  (chaton-viewer-*).
 
+    $DATADIR/logs/archive.log  Log from the archiver.
+
 
   $HTDOCSDIR     A directory where the content accessed by browsers
                  will go.   Each chatroom must have distinct $HTDOCSDIR.
@@ -108,11 +119,11 @@ Directory structure:
                  the web browsers, archived messages are accessed
                  as 'http://yourdomain.example.com/.../$ROOM/a/YYYY/MM/DD'
 
-    $HTDOCSDIR/var/seq   This is a text file containing the message count.
-                 The client programs can poll this file to monitor whether
-                 new message are added or not.  This file must be writable
-                 by CGI scripts.
-
+    $HTDOCSDIR/var/status.{js,scm}  The comet server periodically dumps
+                 the room status into these files.  You can poll these files
+                 to find out the current status of the room.
+                 See http://practical-scheme.net/chaton/doc?Retrieving%20Room%20Status
+                 for the details.
 
 Build a chat room:
 

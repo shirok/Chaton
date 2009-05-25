@@ -12,14 +12,14 @@
   (use gauche.parameter)
   (use gauche.parseopt)
   (use gauche.sequence)
+  (use gauche.logger)
   (use srfi-19)
   (use chaton)
   (export run-archiver))
 (select-module chaton.archiver)
 
-(define-constant *datadir* "@@server-data-dir@@data")
-(define-constant *current.dat* (build-path *datadir* "current.dat"))
-(define-constant *current.dat.bak* (build-path *datadir* "current.dat.bak"))
+(define-constant +current-tmp+ #`",|+current-file+|.tmp")
+(define-constant +current-bak+ #`",|+current-file+|.bak")
 
 ;; The base time zone offset (the offset when DST is not in effect)
 ;; of the location we're running.
@@ -33,6 +33,7 @@
 (define notrunc (make-parameter #f)) ; suppress truncating current.dat
 
 (define (report fmt . args)
+  (apply log-format fmt args)
   (when (verbose) (apply format #t fmt args)))
 
 ;;;
@@ -101,18 +102,17 @@
            (write-entries es file)])))
 
 (define (truncate-current entries dis)
-  (let1 tmp #`",|*current.dat*|.tmp"
-    (write-entries (filter-entry entries (cut <= dis <>) 30) tmp)
-    (cond [(file-equal? tmp *current.dat*)
-           (report "~a unchanged.\n" *current.dat*) (sys-unlink tmp)]
-          [else
-           (report "truncating ~a\n" *current.dat*)
-           (sys-rename *current.dat* *current.dat.bak*)
-           (sys-rename tmp *current.dat*)])))
+  (write-entries (filter-entry entries (cut <= dis <>) 30) +current-tmp+)
+  (cond [(file-equal? +current-tmp+ +current-file+)
+         (report "~a unchanged.\n" +current-file+) (sys-unlink +current-tmp+)]
+        [else
+         (report "truncating ~a\n" +current-file+)
+         (sys-rename +current-file+ +current-bak+)
+         (sys-rename +current-tmp+ +current-file+)]))
 
 (define (daily-log-path dis)
   (let1 tm (sys-localtime dis)
-    (build-path *datadir* (format "~4,'0d/~2,'0d/~2,'0d.dat"
+    (build-path +datadir+ (format "~4,'0d/~2,'0d/~2,'0d.dat"
                                   (+ (ref tm'year) 1900)
                                   (+ (ref tm'mon) 1)
                                   (ref tm'mday)))))
@@ -139,7 +139,7 @@
 (define (chore-for-the-day today-dis)
   (chaton-with-exclusive-locking
    (lambda ()
-     (let* ([entries (read-current *current.dat*)]
+     (let* ([entries (read-current +current-file+)]
             [diss    (existing-diss entries)])
        (dolist [dis diss]
          (when (< dis today-dis)
@@ -158,8 +158,10 @@
 (define (run-archiver args)
   (let-args (cdr args) ([q "q|quiet"]
                         [n "n|notrunc"]
+                        [l "l|logfile=s" (build-path +logdir+ "archive.log")]
                         [else => (lambda _ (usage (car args)))]
                         . args)
+    (log-open l)
     (parameterize ([verbose (not q)]
                    [notrunc n])
       (match args

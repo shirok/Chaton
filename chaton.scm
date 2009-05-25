@@ -18,11 +18,10 @@
 
           chaton-alist->stree
 
-          +datadir+
-          +current-file+
-          +sequence-file+
-          +last-post-file+
-          +num-chatters-file+
+          +datadir+ +current-file+ +sequence-file+
+          +last-post-file+ +num-chatters-file+
+          
+          +logdir+
 
           +docdir+ +status.js+ +status.scm+
           with-output-to-file))
@@ -37,6 +36,9 @@
 (define-constant +sequence-file+ (build-path +datadir+ "sequence"))
 (define-constant +last-post-file+ (build-path +datadir+ "last-post"))
 (define-constant +num-chatters-file+ (build-path +datadir+ "num-chatters"))
+
+(define-constant +logdir+  (or (sys-getenv "CHATON_LOGDIR")
+                               "@@server-data-dir@@logs"))
 
 (define-constant +docdir+ (or (sys-getenv "CHATON_DOCDIR")
                               "@@server-htdocs-dir@@"))
