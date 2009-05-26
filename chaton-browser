@@ -37,17 +37,15 @@
 
 (define (emit-redirect date)
   (cgi-header
-   :location (format "@@httpd-url@@@@url-path@@a/~4,'0d/~2,'0d/~2,'0d"
-                     (date-year date) (date-month date) (date-day date))))
+   :location (apath (date-year date) (date-month date) (date-day date))))
 
 (define (emit-archfile y m d)
   (let1 archfile (build-path +datadir+ (format "~a/~a/~a.dat" y m d))
-    (make-page (if (file-exists? archfile)
-                 (format-content archfile)
-                 "")
-               y m d)))
+    (make-page y m d (if (file-exists? archfile)
+                       (chaton-render-from-file archfile 0 #f)
+                       ""))))
 
-(define (make-page content y m d)
+(define (make-page y m d content)
   (let1 title (format "~a > Archives > ~a/~a/~a" *room* y m d)
     `(,(cgi-header :content-type "text/html; charset=utf-8")
       ,(html:html
@@ -69,9 +67,6 @@
           (html:div :id "archive-view" content)
           (navigate-bar y m d)))))))
 
-(define (format-content archfile)
-  (chaton-render-from-file archfile 0 #f))
-
 (define (navigate-bar y m d)
   (html:div
    :class "archive-navigate"
@@ -88,8 +83,11 @@
          [y (date-year the-day)]
          [m (date-month the-day)]
          [d (date-day the-day)])
-    (html:a :href (format "~aa/~4,'0d/~2,'0d/~2,'0d" *room-url* y m d)
+    (html:a :href (apath y m d)
             (format fmtstr (format "~4,'0d/~2,'0d/~2,'0d" y m d)))))
+
+(define (apath y m d)
+  (format "~a/~4,'0d/~2,'0d/~2,'0d" +archive-url+ y m d))
 
 ;;;===================================================================
 

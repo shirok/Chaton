@@ -18,6 +18,8 @@
 
           chaton-alist->stree
 
+          +room-url+ +archive-url+
+          
           +datadir+ +current-file+ +sequence-file+
           +last-post-file+ +num-chatters-file+
           
@@ -28,7 +30,8 @@
 (select-module chaton)
 
 ;;; Some common constants
-(define-constant +archivepath+ "@@httpd-url@@@@url-path@@a/")
+(define-constant +room-url+    "@@httpd-url@@@@url-path@@")
+(define-constant +archive-url+ (build-path +room-url+ "a"))
 
 (define-constant +datadir+ (or (sys-getenv "CHATON_DATADIR")
                                "@@server-data-dir@@data"))
@@ -116,7 +119,7 @@
               (make-state nick ip sec)))))
 
 (define (make-permalink sec anchor)
-  (build-path +archivepath+
+  (build-path +archive-url+
               (format "~a#~a"
                       (sys-strftime "%Y/%m/%d" (sys-gmtime sec))
                       anchor)))
