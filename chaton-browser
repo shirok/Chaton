@@ -14,13 +14,12 @@
 (select-module chaton.browser)
 
 (define *room* "@@room-name@@")
-(define *room-url* "@@httpd-url@@@@url-path@@")
 
 (define (run-browser args)
   (cgi-main (lambda (params)
               (rxmatch-case (cgi-get-metavariable "PATH_INFO")
                 [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
-                 (emit-archfile y m d)]
+                 (emit-archfile (x->integer y) (x->integer m) (x->integer d))]
                 [#/^\/today/ () (emit-redirect (current-date))]
                 [#/^\/yesterday/ () (emit-redirect (previous-date))]
                 [else (emit-archfile "0" "0" "0")]))))
@@ -40,13 +39,13 @@
    :location (apath (date-year date) (date-month date) (date-day date))))
 
 (define (emit-archfile y m d)
-  (let1 archfile (build-path +datadir+ (format "~a/~a/~a.dat" y m d))
+  (let1 archfile (build-path +datadir+ #`",(ymd y m d).dat")
     (make-page y m d (if (file-exists? archfile)
-                       (chaton-render-from-file archfile 0 #f)
-                       ""))))
+                          (chaton-render-from-file archfile 0 #f)
+                          ""))))
 
 (define (make-page y m d content)
-  (let1 title (format "~a > Archives > ~a/~a/~a" *room* y m d)
+  (let1 title (format "~a > Archives > ~a" *room* (ymd y m d))
     `(,(cgi-header :content-type "text/html; charset=utf-8")
       ,(html:html
         (html:head
@@ -73,21 +72,19 @@
    (html:table
     (html:tr
      (html:td :class "to-prev" (day-link y m d -1 "<< ~a"))
-     (html:td :class "to-room" (html:a :href *room-url* "Back to the chat room"))
+     (html:td :class "to-room" (html:a :href +room-url+ "Back to the chat room"))
      (html:td :class "to-next" (day-link y m d +1 "~a >>"))))))
 
 (define (day-link y m d inc fmtstr)
-  (let* ([this-day (make-date 0 0 0 0 (x->integer d) (x->integer m)
-                              (x->integer y) (date-zone-offset (current-date)))]
+  (let* ([this-day (make-date 0 0 0 12 d m y 0)]
          [the-day  (julian-day->date (+ (date->julian-day this-day) inc))]
          [y (date-year the-day)]
          [m (date-month the-day)]
          [d (date-day the-day)])
-    (html:a :href (apath y m d)
-            (format fmtstr (format "~4,'0d/~2,'0d/~2,'0d" y m d)))))
+    (html:a :href (apath y m d) (format fmtstr (ymd y m d)))))
 
-(define (apath y m d)
-  (format "~a/~4,'0d/~2,'0d/~2,'0d" +archive-url+ y m d))
+(define (apath y m d) (format "~a/~4,'0d/~2,'0d/~2,'0d" +archive-url+ y m d))
+(define (ymd   y m d) (format "~4,'0d/~2,'0d/~2,'0d" y m d))
 
 ;;;===================================================================
 
