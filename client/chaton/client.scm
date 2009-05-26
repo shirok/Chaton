@@ -91,12 +91,13 @@
 (define (make-handler client observer)
   (define handle (or observer (lambda (_) #f)))
   (define (loop)
-    (let1 r (guard (e [(<chaton-error> e) (handle e)]
-                      [else
+    (let1 r (guard (e [else
                        (set! (~ client'observer-error) e)
                        (log-format *chaton-log-drain*
                                    "observer thread error: ~a" (~ e'message))
-                       (raise e)])
+                       (if (<chaton-error> e)
+                         (handle e)
+                         (raise e))])
               (let1 packet (%fetch client)
                 (and-let* ([new-pos (assq-ref packet 'pos)])
                   (set! (~ client'pos) new-pos))
