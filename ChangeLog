@@ -6,6 +6,8 @@
 	  The old archive must be converted by running chaton-archiver with
 	  --rebuild option.  (This may change some entries' permalinks; let's
 	  hope it has limited effect at this point.)
+	* chaton.scm (make-permalink): Changed accordingly (using GMT to
+	  generate permalink url).
 
 2009-05-25  Shiro Kawai  <shiro@acm.org>
 

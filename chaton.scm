@@ -118,7 +118,7 @@
 (define (make-permalink sec anchor)
   (build-path +archivepath+
               (format "~a#~a"
-                      (sys-strftime "%Y/%m/%d" (sys-localtime sec))
+                      (sys-strftime "%Y/%m/%d" (sys-gmtime sec))
                       anchor)))
 
 (define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s\"]*(\?[^#\s\"]*)?(#[^\s\"]*)?)/)
