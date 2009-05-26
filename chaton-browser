@@ -3,18 +3,20 @@
 
 (add-load-path "@@server-data-dir@@")
 
-(use www.cgi)
-(use text.html-lite)
-(use text.tree)
-(use file.util)
-(use chaton)
-(use srfi-19)
+(define-module chaton.browser
+  (use www.cgi)
+  (use text.html-lite)
+  (use text.tree)
+  (use file.util)
+  (use chaton)
+  (use srfi-19)
+  (export run-browser))
+(select-module chaton.browser)
 
 (define *room* "@@room-name@@")
-(define *datadir* "@@server-data-dir@@data")
 (define *room-url* "@@httpd-url@@@@url-path@@")
 
-(define (main args)
+(define (run-browser args)
   (cgi-main (lambda (params)
               (rxmatch-case (cgi-get-metavariable "PATH_INFO")
                 [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
@@ -39,7 +41,7 @@
                      (date-year date) (date-month date) (date-day date))))
 
 (define (emit-archfile y m d)
-  (let1 archfile (build-path *datadir* (format "~a/~a/~a.dat" y m d))
+  (let1 archfile (build-path +datadir+ (format "~a/~a/~a.dat" y m d))
     (make-page (if (file-exists? archfile)
                  (format-content archfile)
                  "")
@@ -88,6 +90,12 @@
          [d (date-day the-day)])
     (html:a :href (format "~aa/~4,'0d/~2,'0d/~2,'0d" *room-url* y m d)
             (format fmtstr (format "~4,'0d/~2,'0d/~2,'0d" y m d)))))
+
+;;;===================================================================
+
+(select-module user)
+(import chaton.browser)
+(define main run-browser)
 
 ;; Local variables:
 ;; mode: scheme
