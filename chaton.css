@@ -36,13 +36,18 @@ body { margin: 0; padding: 0; }
 .archive-navigate .to-room { text-align: center; }
 .archive-navigate .to-next { text-align: right; }
 
-div.monthly-navigate { margin:10px 0 10pt 0; padding: 0; }
+div.monthly-navigate { margin:10px 0 10px 0; padding: 0; }
 .monthly-navigate p  { margin:0; padding: 0; }
 .monthly-navigate p.month-link        { background-color: #ed4; }
 .monthly-navigate p.month-link-active { background-color: #fe6; }
 .monthly-navigate ul { margin:0; padding: 0; }
 .monthly-navigate li { list-style-type: none; padding-left: 15px; }
 .monthly-navigate .navigate-today { background-color: #fee; }
+
+.search-box  { margin: 3em 0 3em 0; padding: 0; }
+.search-area-url { font-family: mono, courier; }
+.search-box p.search-area { margin: 0; padding: 0 0 0 30px; }
+.search-navigate { margin: 0; padding: 0; text-align: right; }
 
 .badge-main { margin-top: 30pt; margin-left: 20pt; }
 .badge-note { font-size: 90%; }

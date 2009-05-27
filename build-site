@@ -38,6 +38,7 @@
       (sed "chaton-badge"  (build-path docdir "b") nconf)
       (sed "chaton-apilogin" (build-path docdir "apilogin") nconf)
       (sed "chaton.html"   (build-path docdir "chaton.html") nconf)
+      (sed "search.html"   (build-path docdir "search.html") nconf)
       (sed "badge.html"    (build-path docdir "badge.html") nconf)
       (sed "htaccess"      (build-path docdir ".htaccess") nconf)
       (sed "chaton.css"    (build-path docdir "chaton.css") nconf)

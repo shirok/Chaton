@@ -1,0 +1,83 @@
+<html> <!-- -*-coding:utf-8-*- -->
+<head>
+<title>Chaton @@room-name@@ &gt; Search</title>
+<link href="@@httpd-url@@@@url-path@@chaton.css" rel="Stylesheet" type="text/css" />
+<script src="@@prototype-url@@" type="text/javascript"></script>
+<script type="text/javascript">
+<!--
+function searchInRoom()
+{
+    var w = $F('search-word');
+    var sr = $F('search-within-room');
+    var ss = $F('search-within-site');
+    if (w != '') {
+        var q = "http://www.google.com/search?q=" + escape(w) + '+inurl:';
+        if (ss) q += '@@site-search-url@@';
+        else    q += '@@httpd-url@@@@url-path@@';
+        q += '&filter=0';
+        document.location.href = q;
+    }
+}
+-->
+</script>
+</head>
+<body id="the-body">
+<h1 id="room-title">
+  <img class="room-icon" src="@@icon-url@@" align="absmiddle" alt="" />
+  @@room-name@@ &gt; Search
+</h1>
+
+<div id="right-pane">
+  <div class="chaton-logo">
+    Built on <a href="http://practical-scheme.net/chaton/">Chaton</a>
+  </div>
+  <div class="room-description">
+@@room-description@@
+  </div>
+  <div class="room-links">
+    <a href="@@httpd-url@@@@url-path@@badge.html">Badge</a> |
+    <a href="http://practical-scheme.net/chaton/doc/Tools">Tools</a>
+  </div>
+</div>
+
+<div id="left-pane">
+
+<div class="search-box">
+  <form onsubmit="searchInRoom();return false;" id="search-form">
+    <p>
+      Search by Google:
+      <input type="text" name="word" id="search-word" size="20" />
+      <input type="submit" name="submit" id="search-button" value="Go" />
+    </p>
+    <p class="search-area">
+      <input type="radio" name="within" id="search-within-room" checked="checked" />
+      <label for="search-within-room">
+        in <span class="search-area-url">@@httpd-url@@@@url-path@@</span>
+      </label>
+    </p>
+    <p class="search-area">
+      <input type="radio" name="within" id="search-within-site" />
+      <label for="search-within-site">
+        in <span class="search-area-url">@@site-search-url@@</span>
+      </label>
+    </p>
+  </form>
+</div>
+
+<p class="search-note">
+  Search may yield no results unless Google has crawled the archive.
+</p>
+<p class="search-note">
+  Googleがアーカイブをまだクロールしていない場合、検索結果は出ません。
+</p>
+
+<p class="search-navigate">
+  <a href="@@httpd-url@@@@url-path@@">Return to the chat room</a>
+</p>
+<p class="search-navigate">
+  <a href="@@httpd-url@@@@url-path@@a/yesterday">Read archives</a>
+</p>
+
+</div>
+</body>
+</html>

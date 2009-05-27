@@ -1,5 +1,12 @@
 2009-05-26  Shiro Kawai  <shiro@acm.org>
 
+	* search.html: The search page (using Google inurl:).
+	* conf/site.conf: A new configuration parameter to specify site-wide
+	  search url (instead of in-room search).
+	* chaton.html: Added a link to the search page.
+	* build-site: includes search.html
+	* chaton.css: Added stuff for the search page.
+
 	* chaton-browser: Added links to the days in the month in the right
 	  pane (monthly-navigation).
 	* chaton.css: Added some styles for the monthy navigation.
