@@ -1,5 +1,8 @@
 2009-05-27  Shiro Kawai  <shiro@acm.org>
 
+	* client/chaton/client.scm (make-handler): Retry after the comet server
+	  disconnected.
+
 	* chaton-browser (day-link): suppress generating links to the date
 	  without archive data.
 

@@ -24,6 +24,7 @@
           chaton-talk
           chaton-bye
           chaton-message-dequeue!
+          chaton-log-open
           <chaton-error>))
 (select-module chaton.client)
 
@@ -91,7 +92,13 @@
 (define (make-handler client observer)
   (define handle (or observer (lambda (_) #f)))
   (define (loop)
-    (let1 r (guard (e [else
+    (let1 r (guard (e [(eq? e 'disconnected)
+                       ;; wait for a while and retry
+                       (log-format *chaton-log-drain*
+                                   "comet server disconnected.  retrying...")
+                       (sys-sleep (+ 5 (random-integer 10)))
+                       #f]
+                      [else
                        (set! (~ client'observer-error) e)
                        (log-format *chaton-log-drain*
                                    "observer thread error: ~a" (~ e'message))
@@ -121,8 +128,12 @@
             (assq-ref reply 'pos))))
 
 (define (%fetch client)
-  (GET (ref client'room-url) (ref client'comet-url)
-       `((t . ,(sys-time)) (c . ,(~ client'cid)) (p . ,(~ client'pos)) (s . 1))))
+  (guard (e [(and (<http-error> e)
+                  (#/http reply contains no data/ (~ e'message)))
+             (raise 'disconnected)])
+    (GET (ref client'room-url) (ref client'comet-url)
+         `((t . ,(sys-time)) (c . ,(~ client'cid)) (p . ,(~ client'pos))
+           (s . 1)))))
 
 (define (GET room-url uri params)
   (receive (host path) (host&path uri)
