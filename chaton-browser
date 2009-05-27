@@ -22,7 +22,7 @@
                  (emit-archfile (x->integer y) (x->integer m) (x->integer d))]
                 [#/^\/today/ () (emit-redirect (current-date))]
                 [#/^\/yesterday/ () (emit-redirect (date+ (current-date) -1))]
-                [else (emit-archfile "0" "0" "0")]))))
+                [else (emit-archfile 1970 1 1)]))))
 
 (define (emit-redirect date)
   (cgi-header
