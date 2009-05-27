@@ -11,7 +11,7 @@ function searchInRoom()
     var sr = $F('search-within-room');
     var ss = $F('search-within-site');
     if (w != '') {
-        var q = "http://www.google.com/search?q=" + escape(w) + '+inurl:';
+        var q = "http://www.google.com/search?q=" + encodeURI(w) + '+inurl:';
         if (ss) q += '@@site-search-url@@';
         else    q += '@@httpd-url@@@@url-path@@';
         q += '&filter=0';
