@@ -56,7 +56,7 @@
                     "Built on "
                     (html:a :href "http://practical-scheme.net/chaton/"
                             "Chaton"))
-          (monthly-navigate y m))
+          (monthly-navigate y m d))
          (html:div
           :id "left-pane"
           (navigate-bar y m d)
@@ -79,12 +79,12 @@
          [d (date-day the-day)])
     (html:a :href (apath y m d) (format fmtstr (ymd y m d)))))
 
-(define (monthly-navigate y m)
+(define (monthly-navigate y m d)
   (html:div
    :class "monthly-navigate"
    `(,(if (= m 1) (month-link (- y 1) 12 #f) (month-link y (- m 1) #f))
      ,(html:p :class "month-link-active" (format "~4,'0d/~2,'0d" y m))
-     ,(html:ul (monthly-entries y m))
+     ,(html:ul (monthly-entries y m d))
      ,(if (= m 12) (month-link (+ y 1) 1 #t) (month-link y (+ m 1) #t)))))
 
 (define (month-link y m head?)
@@ -95,14 +95,15 @@
                       ym))
       "")))
 
-(define (monthly-entries y m)
+(define (monthly-entries y m d)
   (let1 dir (format "~a/~4,'0d/~2,'0d/" +datadir+ y m)
     (if (file-is-directory? dir)
       (map (lambda (cnt)
-             (let1 d (x->integer (rxmatch->string #/(\d+)\.cnt$/ cnt 1))
+             (let1 d1 (x->integer (rxmatch->string #/(\d+)\.cnt$/ cnt 1))
                (html:li
-                (html:a :href (apath y m d)
-                        #`",(ymd y m d) (,(x->integer (file->string cnt)))"))))
+                :class (if (= d d1) "navigate-today" "navigate-other")
+                (html:a :href (apath y m d1)
+                        #`",(ymd y m d1) (,(x->integer (file->string cnt)))"))))
            (directory-list dir :filter #/\.cnt$/ :add-path? #t))
       '())))
 
