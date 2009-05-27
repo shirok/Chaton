@@ -1,5 +1,9 @@
 2009-05-26  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-browser: Added links to the days in the month in the right
+	  pane (monthly-navigation).
+	* chaton.css: Added some styles for the monthy navigation.
+
 	* chaton-archiver: Switched boundary of daily archive---entries are
 	  splitted at midnight of GMT, instead of localtime.
 	  The archiver also creates *.cnt files, recording # of entries.

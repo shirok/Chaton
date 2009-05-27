@@ -21,18 +21,8 @@
                 [#/^\/(\d\d\d\d)\/(\d\d)\/(\d\d)$/ (_ y m d)
                  (emit-archfile (x->integer y) (x->integer m) (x->integer d))]
                 [#/^\/today/ () (emit-redirect (current-date))]
-                [#/^\/yesterday/ () (emit-redirect (previous-date))]
+                [#/^\/yesterday/ () (emit-redirect (date+ (current-date) -1))]
                 [else (emit-archfile "0" "0" "0")]))))
-
-(define (previous-date)
-  (let1 c (current-date)
-    (modified-julian-day->date
-     ;; we take the noon of current date in order to avoid irregularity
-     ;; on DST boundary.
-     (- (date->modified-julian-day
-         (make-date 0 0 0 12 (date-day c) (date-month c) (date-year c)
-                    (date-zone-offset c)))
-        1))))
 
 (define (emit-redirect date)
   (cgi-header
@@ -61,6 +51,13 @@
                             :align "absmiddle" :alt "")
                   (html-escape-string title))
          (html:div
+          :id "right-pane"
+          (html:div :class "chaton-logo"
+                    "Built on "
+                    (html:a :href "http://practical-scheme.net/chaton/"
+                            "Chaton"))
+          (monthly-navigate y m))
+         (html:div
           :id "left-pane"
           (navigate-bar y m d)
           (html:div :id "archive-view" content)
@@ -76,15 +73,48 @@
      (html:td :class "to-next" (day-link y m d +1 "~a >>"))))))
 
 (define (day-link y m d inc fmtstr)
-  (let* ([this-day (make-date 0 0 0 12 d m y 0)]
-         [the-day  (julian-day->date (+ (date->julian-day this-day) inc))]
+  (let* ([the-day  (date+ (date y m d) inc)]
          [y (date-year the-day)]
          [m (date-month the-day)]
          [d (date-day the-day)])
     (html:a :href (apath y m d) (format fmtstr (ymd y m d)))))
 
+(define (monthly-navigate y m)
+  (html:div
+   :class "monthly-navigate"
+   `(,(if (= m 1) (month-link (- y 1) 12 #f) (month-link y (- m 1) #f))
+     ,(html:p :class "month-link-active" (format "~4,'0d/~2,'0d" y m))
+     ,(html:ul (monthly-entries y m))
+     ,(if (= m 12) (month-link (+ y 1) 1 #t) (month-link y (+ m 1) #t)))))
+
+(define (month-link y m head?)
+  (let1 ym (format "~4,'0d/~2,'0d" y m)
+    (if (file-exists? (build-path +datadir+ ym))
+      (html:p :class "month-link"
+              (html:a :href (if head? (apath y m 1) (apath y m (last-day y m)))
+                      ym))
+      "")))
+
+(define (monthly-entries y m)
+  (let1 dir (format "~a/~4,'0d/~2,'0d/" +datadir+ y m)
+    (if (file-is-directory? dir)
+      (map (lambda (cnt)
+             (let1 d (x->integer (rxmatch->string #/(\d+)\.cnt$/ cnt 1))
+               (html:li
+                (html:a :href (apath y m d)
+                        #`",(ymd y m d) (,(x->integer (file->string cnt)))"))))
+           (directory-list dir :filter #/\.cnt$/ :add-path? #t))
+      '())))
+
 (define (apath y m d) (format "~a/~4,'0d/~2,'0d/~2,'0d" +archive-url+ y m d))
 (define (ymd   y m d) (format "~4,'0d/~2,'0d/~2,'0d" y m d))
+
+(define (date y m d) (make-date 0 0 0 0 d m y 0))
+(define (date+ date days)
+  (modified-julian-day->date (+ (date->modified-julian-day date) days) 0))
+
+(define (last-day y m)
+  (date-day (date+ (if (= m 12) (date (+ y 1) 1 1) (date y (+ m 1) 1)) -1)))
 
 ;;;===================================================================
 
