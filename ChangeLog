@@ -1,5 +1,7 @@
 2009-05-27  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-apilogin: Login returns room-name as well.
+
 	* client/chaton/client.scm (make-handler): Retry after the comet server
 	  disconnected.
 

@@ -48,7 +48,7 @@
                  :cache-control "no-cache")
     ,(write-to-string
       `((post-uri . ,+poster+) (comet-uri . ,+viewer+)
-        (icon-uri . ,+icon+) ,@params))))
+        (icon-uri . ,+icon+) (room-name . "@@room-name@@") ,@params))))
 
 (define (reply-error msg reason)
   (log-format "~a: ~a (~a)" msg reason (remote-addr))
