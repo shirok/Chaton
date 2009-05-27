@@ -56,6 +56,12 @@
                     "Built on "
                     (html:a :href "http://practical-scheme.net/chaton/"
                             "Chaton"))
+          (html:div :class "room-links"
+                    (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
+                    " | "
+                    (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
+                    " | "
+                    (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
           (monthly-navigate y m d))
          (html:div
           :id "left-pane"
