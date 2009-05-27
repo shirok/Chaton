@@ -29,7 +29,7 @@
    :location (apath (date-year date) (date-month date) (date-day date))))
 
 (define (emit-archfile y m d)
-  (let1 archfile (build-path +datadir+ #`",(ymd y m d).dat")
+  (let1 archfile (dpath y m d)
     (make-page y m d (if (file-exists? archfile)
                           (chaton-render-from-file archfile 0 #f)
                           ""))))
@@ -83,7 +83,9 @@
          [y (date-year the-day)]
          [m (date-month the-day)]
          [d (date-day the-day)])
-    (html:a :href (apath y m d) (format fmtstr (ymd y m d)))))
+    (if (file-exists? (dpath y m d))
+      (html:a :href (apath y m d) (format fmtstr (ymd y m d)))
+      (html:p :style "color:#fff" (format fmtstr (ymd y m d))))))
 
 (define (monthly-navigate y m d)
   (html:div
@@ -115,6 +117,7 @@
 
 (define (apath y m d) (format "~a/~4,'0d/~2,'0d/~2,'0d" +archive-url+ y m d))
 (define (ymd   y m d) (format "~4,'0d/~2,'0d/~2,'0d" y m d))
+(define (dpath y m d) (build-path +datadir+ #`",(ymd y m d).dat"))
 
 (define (date y m d) (make-date 0 0 0 0 d m y 0))
 (define (date+ date days)

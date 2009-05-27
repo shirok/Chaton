@@ -1,3 +1,8 @@
+2009-05-27  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-browser (day-link): suppress generating links to the date
+	  without archive data.
+
 2009-05-26  Shiro Kawai  <shiro@acm.org>
 
 	* search.html: The search page (using Google inurl:).
