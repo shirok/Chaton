@@ -54,7 +54,7 @@
   (cond
    [(<chaton-error> message)
     (msg-enqueue! (format "[~a] CHATON-ERROR: ~a"
-                          (~ client'room-name) (~ message'message)))]
+                          (chaton-room-name client) (~ message'message)))]
    [(and-let* ([pos (assq-ref message 'pos)])
       (< pos (chaton-pos client)))
     #f]
@@ -64,7 +64,7 @@
            (match m
              [(nick (secs _) text . _)
               (msg-enqueue! (format "~a [~a] ~a: ~a" (fmt-time secs)
-                                    (~ client'room-name) nick text))]
+                                    (chaton-room-name client) nick text))]
              [_ #f])))])
   #f)
 
