@@ -21,27 +21,31 @@
   (use util.list)
   (use util.queue)
   (export chaton-connect
-          chaton-talk
-          chaton-bye
+          chaton-room-url chaton-room-name chaton-post-url chaton-comet-url
+          chaton-icon-url chaton-cid chaton-pos chaton-observer-error
           chaton-message-dequeue!
-          chaton-log-open
-          <chaton-error>))
+          
+          chaton-talk chaton-bye
+
+          chaton-log-open <chaton-error>))
 (select-module chaton.client)
 
 (define-condition-type <chaton-error> <error>
   (room-url #f))
 
+;; Holds info about a connection to a room.  All slots should be
+;; considered private.  Client programs must use exported getters.
 (define-class <chaton-client> ()
-  ((room-url  :init-keyword :room-url)
-   (room-name :init-keyword :room-name)
+  ((room-url  :init-keyword :room-url  :getter chaton-room-url)
+   (room-name :init-keyword :room-name :getter chaton-room-name)
    (observer  :init-keyword :observer)
-   (post-url  :init-keyword :post-url)
-   (comet-url :init-keyword :comet-url)
-   (icon-url  :init-keyword :icon-url)
-   (cid       :init-keyword :cid)
-   (pos       :init-keyword :pos)
+   (post-url  :init-keyword :post-url  :getter chaton-post-url)
+   (comet-url :init-keyword :comet-url :getter chaton-comet-url)
+   (icon-url  :init-keyword :icon-url  :getter chaton-icon-url)
+   (cid       :init-keyword :cid       :getter chaton-cid)
+   (pos       :init-keyword :pos       :getter chaton-pos)
    (observer-thread :init-form #f)
-   (observer-error  :init-form #f)
+   (observer-error  :init-form #f      :getter chaton-observer-error)
    (message-queue   :init-form (make-queue))
    (message-mutex   :init-form (make-mutex))
    (message-cv      :init-form (make-condition-variable))
@@ -91,7 +95,7 @@
 ;;;
 
 (define (make-handler client observer)
-  (define handle (or observer (lambda (_) #f)))
+  (define handle-it (or observer (lambda (_ _) #f)))
   (define (loop)
     (let1 r (guard (e [(eq? e 'disconnected)
                        ;; wait for a while and retry
@@ -104,14 +108,14 @@
                        (log-format *chaton-log-drain*
                                    "observer thread error: ~a" (~ e'message))
                        (if (<chaton-error> e)
-                         (handle e)
+                         (handle-it client e)
                          (raise e))])
               (let1 packet (%fetch client)
                 (and-let* ([new-pos (assq-ref packet 'pos)])
                   (set! (~ client'pos) new-pos))
                 (and-let* ([new-cid (assq-ref packet 'cid)])
                   (set! (~ client'cid) new-cid))
-                (handle packet)))
+                (handle-it client packet)))
       (when (and (not (null? r)) (list? r))
         (with-locking-mutex (~ client'message-mutex)
           (lambda ()

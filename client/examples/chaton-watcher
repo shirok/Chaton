@@ -1,0 +1,88 @@
+#!/usr/bin/env gosh
+;;;
+;;;  A simple command-line tool that observes one or more chaton rooms
+;;;  and prints out the posts.
+;;;
+
+(use chaton.client)
+(use gauche.threads)
+(use gauche.parseopt)
+(use gauche.experimental.ref)
+(use util.match)
+(use util.queue)
+(use util.list)
+
+(define *connections* '())
+(define *mutex* (make-mutex))
+(define *cv*    (make-condition-variable))
+(define *msgq*  (make-queue))
+
+(define (main args)
+  (let-args (cdr args) ([silent "s|silent"]
+                        [else _ (usage)]
+                        . args)
+    (when (null? args) (usage))
+    (set-signal-handler! (sys-sigset SIGINT SIGHUP SIGTERM)
+                         (lambda (_) (cleanup 0)))
+    (guard (e [(<chaton-error> e) (print (~ e'message)) (cleanup 1)])
+      (dolist [room-url args]
+        (push! *connections* (chaton-connect room-url "chaton-watcher" observe))))
+    ;; We run a separate thread to print out the messages and let
+    ;; the primordial thread to sleep.  It is to allow the primordial
+    ;; thread to catch the signal.   If we make the primordial thread to
+    ;; loop, it may fail to catch the signal since pthread_cont_wait is
+    ;; not guaranteed to return when signal is received.
+    (thread-start! (make-thread
+                    (lambda () (while #t
+                                 (for-each print (msg-dequeue!))
+                                 (unless silent (write-char #\x07) (flush))))))
+    (sys-pause)))
+
+(define (usage)
+  (print "Usage: chaton-watcher [-s] <room-url> ...")
+  (print "Options:")
+  (print "  -s, --silent    Do not ring bell on new posts.")
+  (exit 0))
+
+(define (cleanup code)
+  (dolist [conn *connections*]
+    (guard (e [else #f]) (chaton-bye conn)))
+  (exit code))
+
+(define (observe client message)
+  (list client message)
+  (cond
+   [(<chaton-error> message)
+    (msg-enqueue! (format "[~a] CHATON-ERROR: ~a"
+                          (~ client'room-name) (~ message'message)))]
+   [(and-let* ([pos (assq-ref message 'pos)])
+      (< pos (chaton-pos client)))
+    #f]
+   [(assq-ref message 'content)
+    => (lambda (msgs)
+         (dolist [m msgs]
+           (match m
+             [(nick (secs _) text . _)
+              (msg-enqueue! (format "~a [~a] ~a: ~a" (fmt-time secs)
+                                    (~ client'room-name) nick text))]
+             [_ #f])))])
+  #f)
+
+(define (msg-enqueue! message)
+  (with-locking-mutex *mutex*
+    (lambda ()
+      (enqueue! *msgq* message)
+      (condition-variable-broadcast! *cv*))))
+
+(define (msg-dequeue!)
+  (let loop ()
+    (mutex-lock! *mutex*)
+    (cond [(queue-empty? *msgq*) (mutex-unlock! *mutex* *cv*) (loop)]
+          [else (rlet1 msgs (dequeue-all! *msgq*)
+                  (mutex-unlock! *mutex*))])))
+
+(define (fmt-time secs) (sys-strftime "%H:%M" (sys-localtime secs)))
+                
+;; Local variables:
+;; mode: scheme
+;; end:
