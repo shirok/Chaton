@@ -24,6 +24,7 @@
     (when (null? args) (usage))
     (set-signal-handler! (sys-sigset SIGINT SIGHUP SIGTERM)
                          (lambda (_) (cleanup 0)))
+    (chaton-log-open #t)
     (guard (e [(<chaton-error> e) (print (~ e'message)) (cleanup 1)])
       (dolist [room-url args]
         (push! *connections* (chaton-connect room-url "chaton-watcher" observe))))
@@ -36,7 +37,7 @@
                     (lambda () (while #t
                                  (for-each print (msg-dequeue!))
                                  (unless silent (write-char #\x07) (flush))))))
-    (sys-pause)))
+    (while #t (sys-pause))))
 
 (define (usage)
   (print "Usage: chaton-watcher [-s] <room-url> ...")
@@ -50,23 +51,23 @@
   (exit code))
 
 (define (observe client message)
-  (list client message)
-  (cond
-   [(<chaton-error> message)
-    (msg-enqueue! (format "[~a] CHATON-ERROR: ~a"
-                          (chaton-room-name client) (~ message'message)))]
-   [(and-let* ([pos (assq-ref message 'pos)])
-      (< pos (chaton-pos client)))
-    #f]
-   [(assq-ref message 'content)
-    => (lambda (msgs)
-         (dolist [m msgs]
-           (match m
-             [(nick (secs _) text . _)
-              (msg-enqueue! (format "~a [~a] ~a: ~a" (fmt-time secs)
-                                    (chaton-room-name client) nick text))]
-             [_ #f])))])
-  #f)
+  (guard (e [else (print e) #f])
+    (cond
+     [(<chaton-error> message)
+      (msg-enqueue! (format "[~a] CHATON-ERROR: ~a"
+                            (chaton-room-name client) (~ message'message)))]
+     [(and-let* ([pos (assq-ref message 'pos)])
+        (< pos (chaton-pos client)))
+      #f]
+     [(assq-ref message 'content)
+      => (lambda (msgs)
+           (dolist [m msgs]
+             (match m
+               [(nick (secs _) text . _)
+                (msg-enqueue! (format "~a [~a] ~a: ~a" (fmt-time secs)
+                                      (chaton-room-name client) nick text))]
+               [_ #f])))])
+    #f))
 
 (define (msg-enqueue! message)
   (with-locking-mutex *mutex*
