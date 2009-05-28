@@ -111,11 +111,12 @@
                          (handle-it client e)
                          (raise e))])
               (let1 packet (%fetch client)
-                (and-let* ([new-pos (assq-ref packet 'pos)])
-                  (set! (~ client'pos) new-pos))
-                (and-let* ([new-cid (assq-ref packet 'cid)])
-                  (set! (~ client'cid) new-cid))
-                (handle-it client packet)))
+                (let ([new-pos (assq-ref packet 'pos)]
+                      [new-cid (assq-ref packet 'cid)])
+                  (unwind-protect (handle-it client packet)
+                    (begin
+                      (when new-pos (set! (~ client'pos) new-pos))
+                      (when new-cid (set! (~ client'cid) new-cid)))))))
       (when (and (not (null? r)) (list? r))
         (with-locking-mutex (~ client'message-mutex)
           (lambda ()
