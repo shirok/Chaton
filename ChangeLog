@@ -1,3 +1,21 @@
+2009-05-29  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-browser, chaton.css: Added wide padding below the archive view
+	  so that the anchor to the post near the bottom of the archive view
+	  works correctly.
+
+2009-05-28  Shiro Kawai  <shiro@acm.org>
+
+	* client/chaton/client.scm (make-handler): Changed observer signature;
+	  now it is called as (observer <client> <message>).
+	  Also exported a bunch of accessor methods as the means of proper
+	  way to get values from the client.
+	  Also update pos and cid slot _after_ calling the observer, so that
+	  the observer can compare message's pos/cid with the previous ones.
+
+	* client/examples/chaton-watcher: A simple command-line utility that
+	  can monitor multiple chaton rooms.
+
 2009-05-27  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-apilogin: Login returns room-name as well.

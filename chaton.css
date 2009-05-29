@@ -35,6 +35,7 @@ body { margin: 0; padding: 0; }
 .archive-navigate .to-prev { text-align: left; }
 .archive-navigate .to-room { text-align: center; }
 .archive-navigate .to-next { text-align: right; }
+#archive-pane { padding-bottom: 1000px; }
 
 div.monthly-navigate { margin:10px 0 10px 0; padding: 0; }
 .monthly-navigate p  { margin:0; padding: 0; }

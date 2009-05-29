@@ -65,9 +65,11 @@
           (monthly-navigate y m d))
          (html:div
           :id "left-pane"
-          (navigate-bar y m d)
-          (html:div :id "archive-view" content)
-          (navigate-bar y m d)))))))
+          (html:div
+           :id "archive-pane"
+           (navigate-bar y m d)
+           (html:div :id "archive-view" content)
+           (navigate-bar y m d))))))))
 
 (define (navigate-bar y m d)
   (html:div
