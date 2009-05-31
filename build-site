@@ -24,7 +24,11 @@
          [cgi-script #`"chaton-poster-,|safe-room-name|"]
          [comet-script #`"chaton-viewer-,|safe-room-name|"]
          [archiver-script #`"chaton-archiver-,|safe-room-name|"]
+         [room-name/escd (write-to-string (assoc-ref config 'room-name))]
+         [room-description/escd (write-to-string (assoc-ref config 'room-description))]
          [xconfig `((comet-script . ,comet-script) (cgi-script . ,cgi-script)
+                    (room-name/escd . ,room-name/escd)
+                    (room-description/escd . ,room-description/escd)
                     ,@config)])
     (ensure-files-and-directories bindir docdir datadir)
     (receive (nconf chaton-js-update?)
@@ -36,8 +40,8 @@
       (sed "chaton-poster" (build-path docdir cgi-script) nconf)
       (sed "chaton-browser"(build-path docdir "a") nconf)
       (sed "chaton-badge"  (build-path docdir "b") nconf)
+      (sed "chaton-entry"  (build-path docdir "entry") nconf)
       (sed "chaton-apilogin" (build-path docdir "apilogin") nconf)
-      (sed "chaton.html"   (build-path docdir "chaton.html") nconf)
       (sed "search.html"   (build-path docdir "search.html") nconf)
       (sed "badge.html"    (build-path docdir "badge.html") nconf)
       (sed "htaccess"      (build-path docdir ".htaccess") nconf)

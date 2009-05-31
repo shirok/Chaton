@@ -2,6 +2,10 @@
   SetHandler cgi-script
 </Files>
 
+<Files "entry">
+  SetHandler cgi-script
+</Files>
+
 <Files "apilogin">
   SetHandler cgi-script
 </Files>
@@ -30,4 +34,4 @@
   ForceType 'text/html; charset=utf-8'
 </Files>
 
-DirectoryIndex chaton.html
+DirectoryIndex entry

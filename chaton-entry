@@ -1,0 +1,78 @@
+#!/usr/bin/env gosh
+;; Entrance of the room.   Obtains a new client id from the comet daemon
+;; and provide the "outer frame" of the chat room.
+
+(add-load-path "@@server-data-dir@@")
+
+(define-module chaton.entry
+  (use www.cgi)
+  (use rfc.http)
+  (use text.html-lite)
+  (use text.tree)
+  (export entry-main))
+(select-module chaton.entry)
+
+(define-constant +chaton-url+ "http://practical-scheme.net/chaton/")
+
+(define (entry-main args)
+  (cgi-main (lambda (params)
+              `(,(cgi-header :content-type "text/html; charset=utf-8")
+                ,(the-page))))
+  0)
+
+(define (the-page)
+  (html:html
+   (html:head
+    (html:title "Chaton "@@room-name/escd@@)
+    (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
+               :type "text/css")
+    (html:script :src "@@prototype-url@@" :type "text/javascript")
+    (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+                 :type "text/javascript"))
+   (html:body :id "the-body" :onload "initMainBody();"
+    ;; Title ------------------
+    (html:h1 :id "room-title"
+     (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
+     @@room-name/escd@@)
+    ;; Right pane -------------
+    (html:div :id "right-pane"
+     (html:div :class "chaton-logo"
+      "Built on "(html:a :href +chaton-url+ "Chaton"))
+     (html:div :class "room-description" @@room-description/escd@@)
+     (html:div :class "room-links"
+      (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
+      (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
+      (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
+     )
+    ;; Left pane --------------
+    (html:div :id "left-pane"
+     (html:div :id "navigation" (html:a :href "a/yesterday" "Read Archive"))
+     (html:div :id "view-frame-container"
+      (html:iframe :src "@@httpd-url@@:@@comet-port@@/" :id "view-frame"))
+     (html:form :onsubmit "post(); return false;" :id "post-form"
+      (html:table
+       (html:tr
+        (html:td "Nickname:")
+        (html:td
+         (html:input :type "text" :name "nick" :id "post-nick")
+         (html:input :type "checkbox" :name "remember" :id "post-remember")
+         (html:label :for "remember" "Remember me")))
+       (html:tr
+        (html:td "Text:")
+        (html:td
+         (html:textarea :name "text" :id "post-text" :rows "3" :cols "40"))
+        (html:td :valign "bottom"
+         (html:input :type "submit" :name "submit" :id "post-submit"
+                     :value "chat"))))))
+    )))
+
+;;;===================================================================
+
+(select-module user)
+(import chaton.entry)
+(define main entry-main)
+
+;; Local variables:
+;; mode: scheme
+;; end:
+

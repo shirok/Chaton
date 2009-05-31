@@ -22,7 +22,12 @@ Files:
   The following files are scripts that cooperates to make Chaton
   work:
 
-    chaton-viewer   This is a Comet server responsible to
+    chaton-entry    This is a CGI script invoked when the room
+          is accessed via web browsers.  This script creates the
+          "outer frame" of the chat room page, and make the "inner
+          frame" connect to the Comet server.
+
+    chaton-viewer   This is the Comet server responsible to
           distribute room contents.   It must run as a daemon.
           Currently you have to run one daemon process per
           one chatroom.  The actual installed script is named
@@ -50,18 +55,14 @@ Files:
 
  The following files are to consist the client-side contents:
 
-    chaton.html   This is the outer HTML that defines the basic
-          parts of the chat room page.   It contains an iframe,
-          whose content is provided from the chaton-viewer server.
-
     chaton.js   The javascript that implements client-side operations.
-          The same file is read from both the outer 'chaton.html' file
+          The same file is read from both the outer content and
           and from the content inside the iframe.
           Upon installation, this file is renamed to 'chaton.XXXXXX.js'
           where XXXXXX is a unique string, to avoid caching by
           browsers.
 
-    chaton.css   The stylesheet.  Used by both the outer 'chaton.html'
+    chaton.css   The stylesheet.  Used by both the outer content
           and the content inside the iframe.
 
   Additionally, 'chaton.scm' implements common funcionalities used
@@ -106,8 +107,8 @@ Directory structure:
 
     $HTDOCSDIR/.htaccess     Some DirectoryIndex and SetHandler directives.
 
-    $HTDOCSDIR/chaton.html   The main HTML.  We use DirectoryIndex so
-                 that this file is retrieved when the client access
+    $HTDOCSDIR/entry         The main entry CGI.  We use DirectoryIndex so
+                 that this script is kicked when the client access
                  this directory.
 
     $HTDOCSDIR/chaton.css, $HTDOCSDIR/chaton.XXXXXX.js

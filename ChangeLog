@@ -1,3 +1,10 @@
+2009-05-30  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-entry, chaton.html: Replaced chaton.html by chaton-entry
+	  cgi script for preparation of issuing client ID upon accessing the
+	  room.
+	* build-site, README, htaccess: Changed accordingly.
+
 2009-05-29  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-browser, chaton.css: Added wide padding below the archive view
