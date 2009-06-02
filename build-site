@@ -59,7 +59,8 @@
   
   (define (xlate-1 line)
     (apply regexp-replace-all* line
-           (concatenate (map (lambda (cv) `(,#`"@@,(car cv)@@" ,(cdr cv)))
+           (concatenate (map (lambda (cv) `(,#`"@@,(car cv)@@"
+                                            ,(lambda (m) (cdr cv))))
                              config))))
   (define (xlate in out)
     (let1 first-line (read-line in)
