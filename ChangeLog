@@ -1,3 +1,9 @@
+2009-06-01  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-entry: Allocates client ID when the entry is accessed.
+	* chaton-viewer (emit-skeleton): Fixed to carry over the client ID
+	  given to the skeleton access.
+
 2009-05-30  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-entry, chaton.html: Replaced chaton.html by chaton-entry

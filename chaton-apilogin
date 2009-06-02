@@ -17,8 +17,7 @@
 (define (main args)
   (set! (port-buffering (current-error-port)) :line)
   (log-open +logfile+)
-  (cgi-main handle-request)
-  0)
+  (cgi-main handle-request))
 
 (define (handle-request ps)
   (let1 m (cgi-get-metavariable "REQUEST_METHOD")

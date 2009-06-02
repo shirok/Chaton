@@ -149,7 +149,7 @@
         (match-let1 (pos cid sexp?) (get-header csock (socket-input-port csock))
           (if pos
             (emit-tail csock pos cid sexp?)
-            (emit-skeleton (socket-output-port csock)))))
+            (emit-skeleton cid (socket-output-port csock)))))
     (socket-close csock)))
 
 ;; returns the integer parameter given to the query
@@ -175,8 +175,8 @@
 ;; NB: it may be more efficient if we send out existing content here,
 ;; instead of letting client to fetch it immediately after this reply.
 ;; A possible option for future development.
-(define (emit-skeleton out)
-  (let1 s (tree->string (make-skeleton (new-client-cid)))
+(define (emit-skeleton cid out)
+  (let1 s (tree->string (make-skeleton (if (valid-cid? cid) cid (new-client-cid))))
     (write-tree `("HTTP/1.1 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
                    Cache-control: no-cache\r\n\

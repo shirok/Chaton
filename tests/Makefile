@@ -1,4 +1,4 @@
-TESTS = lib.scm viewer.scm poster.scm archiver.scm browser.scm badge.scm
+TESTS = lib.scm viewer.scm entry.scm poster.scm archiver.scm browser.scm badge.scm
 
 all:
 
