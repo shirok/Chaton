@@ -15,6 +15,7 @@
 
 	* build-site, htaccess, sample.conf: Added settings to allow the
 	  chat-room private using http basic authentication.
+	* chaton-passwd: simple password changing script for private rooms.
 
 2009-05-30  Shiro Kawai  <shiro@acm.org>
 

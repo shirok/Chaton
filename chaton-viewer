@@ -258,9 +258,6 @@
       Content-length: ",(string-size packet)"\r\n\r\n",packet) out)
     (flush out)))
 
-  
-  
-
 (define (make-packet cid pos content sexp?)
   (chaton-alist->stree
    `((pos . ,pos) (nc . ,(get-num-clients)) (ver . "@@version@@")

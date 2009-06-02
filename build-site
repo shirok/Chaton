@@ -52,6 +52,8 @@
         (remove-old-chaton-js docdir)
         (sed "chaton.js" (build-path docdir (assoc-ref nconf 'chaton-js)) nconf)]
        [else (print "chaton.js unchanged.")])
+      (when (assoc-ref config 'htpasswd-path)
+        (sed "chaton-passwd" (build-path docdir "passwd") nconf))
       )))
 
 (define (sed inf outf config :optional (verbose? #t))
@@ -149,5 +151,9 @@
     #`"AuthType Basic\
      \nAuthName \",(assoc-ref config 'room-name) private area\"\
      \nAuthUserFile ,htpasswd\
-     \nRequire valid-user"
+     \nRequire valid-user\
+     \n\
+     \n<Files \"passwd\">\
+     \n  SetHandler cgi-script\
+     \n</Files>\n"
     ""))

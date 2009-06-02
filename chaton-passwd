@@ -1,0 +1,75 @@
+#!/usr/bin/env gosh
+;; Simple password changer for http basic authentication.
+
+(add-load-path "@@server-data-dir@@")
+
+(use www.cgi)
+(use text.html-lite)
+(use gauche.process)
+
+(define (main args)
+  (cgi-main
+   (lambda (params)
+     (let ((username (cgi-get-metavariable "REMOTE_USER"))
+	   (pwd1     (cgi-get-parameter "pwd1" params))
+	   (pwd2     (cgi-get-parameter "pwd2" params)))
+       (cond
+	((not username) (not-authorized))
+	((or (not pwd1) (not pwd2)) (pass-page ""))
+	((not (string=? pwd1 pwd2)) (pass-page "Passwords don't match."))
+	((not (#/^[\w~!@#$%^&*()\[\]{}<>,.\/?+=|:\"\;-]*$/ pwd1))
+         (pass-page "Invalid character in the password"))
+	(else (change-pass username pwd1)))))
+   ))
+
+(define (not-authorized)
+  (list
+   (cgi-header)
+   (html-doctype)
+   (html:html
+    (html:head (html:title "Unauthorized user"))
+    (html:body (html:p "You're not authorized.")))))
+
+(define (pass-page msg)
+  (list
+   (cgi-header)
+   (html-doctype)
+   (html:html
+    (html:head
+     (html:title "Chaton Password Change")
+     (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet" :type "text/css"))
+    (html:body :id "the-body"
+     (html:h1 :id "room-title"
+      (html:img :class "room-icon" :src "@@icon-url@@" :align "absmiddle" :alt "")
+      @@room-name/escd@@)
+     (html:h2 :style "margin-top: 2em; font-size: 120%"
+              "Changing password of " (cgi-get-metavariable "REMOTE_USER"))
+     (html:p :style "color: #ff0000" msg)
+     (html:form
+      :method "POST" :action "passwd"
+      (html:table
+       (html:tr (html:th :align "right" "Password: ")
+		(html:td :align "left"
+			 (html:input :name "pwd1" :type "password" :width 30)))
+       (html:tr (html:th :align "right" "Retype Password: ")
+		(html:td :align "left"
+			 (html:input :name "pwd2" :type "password" :width 30)))
+       (html:tr (html:td)
+		(html:td (html:input :name "submit" :type "submit"
+				     :value "Change")))))
+     (html:p "After submitting, you'll be asked to enter the password again.")
+     ))))
+
+(define (change-pass user passwd)
+  (run-process "/usr/bin/htpasswd" "-bm"
+	       "@@htpasswd-path@@"
+	       user passwd
+	       :input "/dev/null" :output "/dev/null"
+	       :wait #t)
+  (list
+   (cgi-header :status "302" :location "@@httpd-url@@@@url-path@@")
+   ))
+
+;; Local variables:
+;; mode: scheme
+;; end:
