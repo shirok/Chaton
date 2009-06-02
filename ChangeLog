@@ -13,6 +13,9 @@
 	  loose-login or strict-login mode.
 	* chaton.js (insertContent): Handles cid = -1 case introduced above.
 
+	* build-site, htaccess, sample.conf: Added settings to allow the
+	  chat-room private using http basic authentication.
+
 2009-05-30  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-entry, chaton.html: Replaced chaton.html by chaton-entry

@@ -29,6 +29,7 @@
          [xconfig `((comet-script . ,comet-script) (cgi-script . ,cgi-script)
                     (room-name/escd . ,room-name/escd)
                     (room-description/escd . ,room-description/escd)
+                    (htaccess-auth . ,(htaccess-auth config))
                     ,@config)])
     (ensure-files-and-directories bindir docdir datadir)
     (receive (nconf chaton-js-update?)
@@ -140,3 +141,12 @@
 
 (define (remove-old-chaton-js dir)
   (remove-files (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)))
+
+;; emit htaccess basic authentication setting if needed
+(define (htaccess-auth config)
+  (if-let1 htpasswd (assoc-ref config 'htpasswd-path)
+    #`"AuthType Basic\
+     \nAuthName \",(assoc-ref config 'room-name) private area\"\
+     \nAuthUserFile ,htpasswd\
+     \nRequire valid-user"
+    ""))
