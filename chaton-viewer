@@ -36,6 +36,7 @@
 (define-constant +viewer-file+ "@@server-data-dir@@data/current.dat")
 (define-constant +viewer-log+ "@@server-data-dir@@logs/comet.log")
 (define-constant +credential+ "@@server-data-dir@@auth")
+(define-constant +loose-login+ (read-from-string "@@loose-login@@"))
 
 ;; Global data shared between threads.  Accessor should lock *mutex* (ugh!).
 (define *mutex* (make-mutex))
@@ -144,12 +145,13 @@
   (unwind-protect
       (guard (e [(eq? e 'disconnected) (log-child csock "disconnected")]
                 [(eq? e 'dup) (log-child csock "abandoned for dup request")]
+                [(eq? e 'expired) (log-child csock "cid expired")]
                 [(eq? e 'processed) #f]
                 [else (log-child csock "error ~s" (~ e'message))])
         (match-let1 (pos cid sexp?) (get-header csock (socket-input-port csock))
           (if pos
             (emit-tail csock pos cid sexp?)
-            (emit-skeleton cid (socket-output-port csock)))))
+            (emit-skeleton csock cid))))
     (socket-close csock)))
 
 ;; returns the integer parameter given to the query
@@ -175,14 +177,20 @@
 ;; NB: it may be more efficient if we send out existing content here,
 ;; instead of letting client to fetch it immediately after this reply.
 ;; A possible option for future development.
-(define (emit-skeleton cid out)
-  (let1 s (tree->string (make-skeleton (if (valid-cid? cid) cid (new-client-cid))))
+(define (emit-skeleton csock cid)
+  (let ([s (tree->string (make-skeleton (cond [(and cid (valid-cid? cid)) cid]
+                                              [+loose-login+ (new-client-cid)]
+                                              [else (emit-bad-cid csock)])))]
+        [out (socket-output-port csock)])
     (write-tree `("HTTP/1.1 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
                    Cache-control: no-cache\r\n\
                    Content-length: ",(string-size s)"\r\n\r\n",s)
                 out)
     (flush out)))
+
+(define (emit-bad-cid csock)
+  (emit-general csock "400" "text/html" (tree->string (make-bad-cid))))
 
 ;; Let the client wait until one of the following condition is met:
 ;;
@@ -201,6 +209,8 @@
   (define ccnt (get-num-clients))
   (define time-started (sys-time))
   (define ncid (client-connected csock cid)) ; possibly update cid
+  (unless ncid                ; only happends when +loose-login+ is #f
+    (send-expired csock sexp?) (raise 'expired))
   (let loop ()
     (mutex-lock! *mutex*)
     (cond [(equal? pos *size*)  ; wait until *size* changes or timeout
@@ -235,6 +245,9 @@
   (log-child csock "ping back ~a" cid)
   (send-reply csock cid pos #f sexp?))
 
+(define (send-expired csock sexp?)
+  (send-reply csock -1 0 #f sexp?))
+
 (define (send-reply csock cid pos content sexp?)
   (client-replied csock cid)
   (let ([packet (tree->string (make-packet cid pos content sexp?))]
@@ -244,6 +257,9 @@
       Cache-control: no-cache\r\n\
       Content-length: ",(string-size packet)"\r\n\r\n",packet) out)
     (flush out)))
+
+  
+  
 
 (define (make-packet cid pos content sexp?)
   (chaton-alist->stree
@@ -338,13 +354,13 @@
     (^() (if-let1 e (hash-table-get *clnt-table* cid #f)
            (if (cid-waiting? e) ; this is a duplicate request.
              (rlet1 ncid (%allocate-cid #f)
-               (log-child csock "obsoleting dup cid: ~a; reallocating ~a"
-                          cid ncid)
+               (log-child csock "obsoleting dup cid: ~a; reallocating ~a" cid ncid)
                (hash-table-delete! *clnt-table* cid))
              (begin (cid-mark-waiting! e) cid))
-           (rlet1 ncid (%allocate-cid #f)
-             (log-child csock "child has unknown cid: ~a, reallocating ~a"
-                        cid ncid))))))
+           (if +loose-login+
+             (rlet1 ncid (%allocate-cid #f)
+               (log-child csock "child has unknown cid: ~a, reallocating ~a" cid ncid))
+             #f)))))
 
 (define (client-replied csock cid)
   (with-locking-mutex *clnt-mutex*
@@ -393,18 +409,25 @@
 ;;;   Content to distribute
 ;;;
 
+(define-constant +content-header+
+  (html:head (html:title "Chaton")
+             (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet" :type "text/css")
+             (html:script :src "@@prototype-url@@" :type "text/javascript")
+             (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
+                          :type "text/javascript")))
 (define (make-skeleton cid)
-  (html:html
-   (html:head (html:title "Test")
-              (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet" :type "text/css")
-              (html:script :src "@@prototype-url@@" :type "text/javascript")
-              (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
-                           :type "text/javascript"))
+  (html:html +content-header+
    (html:body
     :onload (format "initViewFrame(~d);" cid)
     (html:div :id "view-pane")
-    (html:div :id "status-pane" (html:p :id "status-line" "Connecting..."))
-    )))
+    (html:div :id "status-pane" (html:p :id "status-line" "Connecting...")))))
+
+(define (make-bad-cid)
+  (html:html +content-header+
+   (html:body
+    (html:div :id "view-pane"
+     (html:h1 "Session expired")
+     (html:p  "Please reload to refresh the session")))))
 
 ;;;
 ;;;  Daemon management

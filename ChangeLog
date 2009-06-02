@@ -3,6 +3,15 @@
 	* chaton-entry: Allocates client ID when the entry is accessed.
 	* chaton-viewer (emit-skeleton): Fixed to carry over the client ID
 	  given to the skeleton access.
+	  (client-connected, emit-tail): In strict-login mode, make the server
+	  reject unknown CID instead of allocating new CID.  In that case,
+	  the skeleton access returns a content telling the client to reload,
+	  and the json access returns cid = -1 to indicate the rejection.
+	  Typical public chatroom doesn't need this feature; this is only for
+	  private rooms using http authentication.
+	* sample.conf (loose-login): Added a config parameter to specify
+	  loose-login or strict-login mode.
+	* chaton.js (insertContent): Handles cid = -1 case introduced above.
 
 2009-05-30  Shiro Kawai  <shiro@acm.org>
 

@@ -188,6 +188,10 @@ function insertContent(json, cid) {
         document.location.href = '@@httpd-url@@:@@comet-port@@/';
         return;
     }
+    if (json.cid < 0) {
+        showStatus('Session Expired.  Please Reload.', 'status-alert');
+        return;
+    }
     showStatus('Connected ('+json.nc+' user'+(json.nc>1?'s':'')+' chatting)',
                'status-ok');
     need_scroll = true;
