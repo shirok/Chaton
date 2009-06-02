@@ -63,8 +63,8 @@
      (html:div :class "room-description" @@room-description/escd@@)
      (html:div :class "room-links"
       (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
-      (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
-      (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
+      " | "(html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
+      " | "(html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
      )
     ;; Left pane --------------
     (html:div :id "left-pane"
