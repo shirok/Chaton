@@ -446,7 +446,10 @@
   (guard (e [(<system-error> e)
              (if-let1 pid (read-pid)
                (unless (= pid (sys-getpid))
-                 (exit 1 "@@comet-script@@ seems already running (pid ~a)." pid))
+                 (exit 1 "@@comet-script@@ seems already running (pid ~a).\
+                          If you're sure that the process isn't running,\
+                          remove ~a and run @@comet-script@@ again."
+                       pid *pidfile*))
                (exit 1 "@@comet-script@@ can't write pidfile (~a): ~a"
                      *pidfile* (~ e'message)))])
     (write-pid))
