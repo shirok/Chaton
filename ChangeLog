@@ -1,5 +1,7 @@
 2009-06-13  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.scm (render-url): Allow '-' in the youtube vid.
+
 	* chaton-archiver (mklink): Ensure directory before creating the
 	  symlink (only becomes a problem when archiver is invoked for the
 	  first time *and* there's nothing to archive.)
