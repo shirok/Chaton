@@ -151,6 +151,7 @@
          (report "link ~a exists.  skipping.\n" daily-file)]
         [else
          (report "creating link ~a\n" daily-file)
+         (make-directory* (sys-dirname daily-file)) ;ensure directory
          (sys-symlink "../../current.dat" daily-file)]))
 
 (define (run-archiver args)
