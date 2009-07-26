@@ -1,3 +1,11 @@
+2009-07-26  Kazuki Tsujimoto <kazuki@callcc.net>
+
+	* cahton-poster (poster-main): Show stack trace when an error
+	  occured.
+
+	* chaton-poster (update-rss): Added to support RSS.
+	* chaton-entry, chaton.scm: Changed accordingly.
+
 2009-06-13  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (render-url): Allow '-' in the youtube vid.

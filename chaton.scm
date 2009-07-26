@@ -4,6 +4,7 @@
 (define-module chaton
   (use srfi-1)
   (use srfi-13)
+  (use srfi-19)
   (use text.html-lite)
   (use text.tree)
   (use file.util)
@@ -14,6 +15,7 @@
   (use gauche.experimental.lamb)
   (export chaton-render chaton-read-entries
           chaton-render-from-file
+          chaton-render-html-1 chaton-render-rss-1
           chaton-with-shared-locking chaton-with-exclusive-locking
 
           chaton-alist->stree
@@ -25,7 +27,7 @@
           
           +logdir+
 
-          +docdir+ +status.js+ +status.scm+
+          +docdir+ +status.js+ +status.scm+ +index.rdf+
           with-output-to-file))
 (select-module chaton)
 
@@ -47,6 +49,7 @@
                               "@@server-htdocs-dir@@"))
 (define-constant +status.js+ (build-path +docdir+ "var/status.js"))
 (define-constant +status.scm+ (build-path +docdir+ "var/status.scm"))
+(define-constant +index.rdf+ (build-path +docdir+ "index.rdf"))
 
 ;;;
 ;;;  Entries
@@ -54,9 +57,11 @@
 
 ;; es : ((<nick> (<sec> <nsec>) <text> <ipaddr>) ...)
 ;; last-state : (<chatter> <ipaddr> <timestamp>)
+;; renderer : optional(if omitted, chaton-render-html-1 is used)
 ;; returns <text-tree> and new-state
-(define (chaton-render es last-state)
-  (map-accum chaton-render-1 (ensure-state last-state) es))
+(define (chaton-render es last-state . opts)
+  (let-optionals* opts ((renderer chaton-render-html-1))
+    (map-accum renderer (ensure-state last-state) es)))
 
 ;; Read data file from FILE, starting from POS.
 ;; Returns list of entries and new POS.
@@ -66,10 +71,11 @@
 
 ;; A convenience routine combinig above two.
 ;; returns <text-tree>, new-state, and new POS.
-(define (chaton-render-from-file file pos last-state)
-  (receive (es pos) (chaton-read-entries file pos)
-    (receive (tree new-state) (chaton-render es last-state)
-      (values tree new-state pos))))
+(define (chaton-render-from-file file pos last-state . opts)
+  (let-optionals* opts ((renderer chaton-render-html-1))
+    (receive (es pos) (chaton-read-entries file pos)
+      (receive (tree new-state) (chaton-render es last-state renderer)
+        (values tree new-state pos)))))
 
 ;; Utility; render alist into S-expr or Json.  Assuming keys are symbols.
 (define (chaton-alist->stree alist sexp?)
@@ -93,7 +99,7 @@
 (define (state-ip last-state)      (cadr last-state))
 (define (state-timestamp last-state) (caddr last-state))
 
-(define (chaton-render-1 entry last-state)
+(define (chaton-render-html-1 entry last-state)
   (match-let1 (nick (sec usec) text . opt) entry
     (let* ([anchor-string (format "entry-~x-~2,'0x" sec usec)]
            [permalink (make-permalink sec anchor-string)]
@@ -116,6 +122,28 @@
                              (safe-text text))
                    (html:div :class "entry-single" :id anchor-string
                              (html:span (safe-text text)))))
+              (make-state nick ip sec)))))
+
+(define (chaton-render-rss-1 entry last-state)
+  (match-let1 (nick (sec usec) text . opt) entry
+    (let* ([text-with-nick #`",|nick|: ,|text|"]
+           [anchor-string (format "entry-~x-~2,'0x" sec usec)]
+           [permalink (make-permalink sec anchor-string)]
+           [title (safe-text ((#/^.*/ text-with-nick)))] ;; slice a first line
+           [desc (if (#/\n/ text-with-nick)
+                   (html:pre :class "entry-multi" :id anchor-string
+                             (safe-text text-with-nick))
+                   (html:div :class "entry-single" :id anchor-string
+                             (html:span (safe-text text-with-nick))))]
+           [ip (if (pair? opt) (car opt) #f)])
+      (values `("<item>\n"
+                "<title>" ,title "</title>\n"
+                "<link>" ,permalink "</link>\n"
+                "<description><![CDATA[" ,desc "]]></description>\n"
+                "<content:encoded><![CDATA[" ,desc "]]></content:encoded>\n"
+                "<pubDate>" ,(time->rfc822-date-string sec) ,"</pubDate>\n"
+                "<guid isPermaLink=\"true\">" ,permalink "</guid>\n"
+                "</item>\n")
               (make-state nick ip sec)))))
 
 (define (make-permalink sec anchor)
@@ -174,6 +202,9 @@
                (html:a :href #`"http://www.nicovideo.jp/watch/,|vid|"
                        (html-escape-string
                         #`"http://www.nicovideo.jp/watch/,|vid|"))))
+
+(define (time->rfc822-date-string seconds)
+  (date->string (time-utc->date (make <time> :second seconds)) "~a, ~e ~b ~Y ~X ~z"))
 
 ;;;
 ;;;  Reading datafile

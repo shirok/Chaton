@@ -26,8 +26,15 @@
                    (call-with-output-file +current-file+
                      (cut update <>
                           (string-trim-both nick) (string-trim-both text))
-                     :if-exists :append)))
-                (emit-reply))))
+                     :if-exists :append)
+                   (update-rss)))
+                (emit-reply)))
+            :on-error (lambda (e)
+                        `(,(cgi-header)
+                          ,(html:pre
+                            (html-escape-string
+                             (call-with-output-string
+                               (cut with-error-to-port <> (cut report-error e))))))))
   0)
 
 (define (emit-reply)                    ;dummy
@@ -66,6 +73,21 @@
   ;; NB: Theoretically the value written may differ from the entry's timestamp,
   ;; but we don't need precision here.
   (with-output-to-file +last-post-file+ (cut write (sys-time)) :atomic #t))
+
+(define (update-rss)
+  (call-with-output-file +index.rdf+
+    (lambda (out)
+      (write-tree
+       `("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
+         "<rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\">\n"
+         "<channel>\n"
+         "<title>" ,(html-escape-string "@@room-name@@") "</title>\n"
+         "<link>" ,(html-escape-string "@@httpd-url@@@@url-path@@") "</link>\n"
+         "<description>" ,(html-escape-string "@@room-description@@") "</description>\n"
+         ,(chaton-render-from-file +current-file+ 0 #f chaton-render-rss-1)
+         "</channel>\n"
+         "</rss>\n")
+       out))))
 
 ;;;===================================================================
 (select-module user)
