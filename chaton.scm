@@ -106,7 +106,7 @@
 (define (state-timestamp last-state) (caddr last-state))
 
 (define (chaton-render-html-1 entry last-state)
-  (receive (nick sec usec text ip) (decompose-entry)
+  (receive (nick sec usec text ip) (decompose-entry entry)
     (let* ([anchor-string (make-anchor-string sec usec)]
            [permalink (make-permalink sec anchor-string)])
       (values `(,(if (and (equal? nick (state-chatter last-state))
