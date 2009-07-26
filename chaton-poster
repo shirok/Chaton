@@ -77,8 +77,8 @@
   (with-output-to-file +last-post-file+ (cut write (sys-time)) :atomic #t))
 
 (define (update-rss)
-  (call-with-output-file +index.rdf+
-    (lambda (out)
+  (with-output-to-file +index.rdf+
+    (lambda ()
       (write-tree
        `("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
          "<rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\">\n"
@@ -88,8 +88,8 @@
          "<description>" ,(html-escape-string "@@room-description@@") "</description>\n"
          ,(chaton-render-from-file +current-file+ 0 #f chaton-render-rss-1)
          "</channel>\n"
-         "</rss>\n")
-       out))))
+         "</rss>\n")))
+    :atomic #t))
 
 ;;;===================================================================
 (select-module user)

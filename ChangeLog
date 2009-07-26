@@ -1,5 +1,14 @@
 2009-07-26  Shiro Kawai  <shiro@acm.org>
 
+	* chaton-entry (the-page), chaton.scm (+index.rdf+): Changed the
+	  location of index.rdf under 'var' subdirectory; the room directory
+	  may be unwritable.
+	* chaton-poster (update-rss): Use extended with-output-to-file
+	  to avoid race condition
+
+	* chaton.scm (chaton-render-html-1, chaton-render-rss-1): Refactored
+	  common routines.
+
 	* chaton-poster (poster-main), chaton.scm (+show-stack-trace+),
 	  sample.conf (show-stack-trace-on-error): Added configuration
 	  switch to customize whether stack trace should be shown on

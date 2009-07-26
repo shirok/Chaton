@@ -52,7 +52,7 @@
                               "@@server-htdocs-dir@@"))
 (define-constant +status.js+ (build-path +docdir+ "var/status.js"))
 (define-constant +status.scm+ (build-path +docdir+ "var/status.scm"))
-(define-constant +index.rdf+ (build-path +docdir+ "index.rdf"))
+(define-constant +index.rdf+ (build-path +docdir+ "var/index.rdf"))
 
 (define-constant +show-stack-trace+
   (read-from-string "show-stack-trace-on-error"))
@@ -106,10 +106,9 @@
 (define (state-timestamp last-state) (caddr last-state))
 
 (define (chaton-render-html-1 entry last-state)
-  (match-let1 (nick (sec usec) text . opt) entry
-    (let* ([anchor-string (format "entry-~x-~2,'0x" sec usec)]
-           [permalink (make-permalink sec anchor-string)]
-           [ip (if (pair? opt) (car opt) #f)])
+  (receive (nick sec usec text ip) (decompose-entry)
+    (let* ([anchor-string (make-anchor-string sec usec)]
+           [permalink (make-permalink sec anchor-string)])
       (values `(,(if (and (equal? nick (state-chatter last-state))
                           (equal? ip (state-ip last-state))
                           (< (abs (- (state-timestamp last-state) sec)) 240))
@@ -123,25 +122,18 @@
                          :id #`"anchor-,anchor-string"
                          :href permalink :name permalink :target "_parent"
                          "#")
-                ,(if (#/\n/ text)
-                   (html:pre :class "entry-multi" :id anchor-string
-                             (safe-text text))
-                   (html:div :class "entry-single" :id anchor-string
-                             (html:span (safe-text text)))))
+                ,(html-format-entry text anchor-string))
               (make-state nick ip sec)))))
 
 (define (chaton-render-rss-1 entry last-state)
-  (match-let1 (nick (sec usec) text . opt) entry
+  (receive (nick sec usec text ip) (decompose-entry entry)
     (let* ([text-with-nick #`",|nick|: ,|text|"]
-           [anchor-string (format "entry-~x-~2,'0x" sec usec)]
+           [anchor-string (make-anchor-string sec usec)]
            [permalink (make-permalink sec anchor-string)]
            [title (safe-text ((#/^.*/ text-with-nick)))] ;; slice a first line
-           [desc (if (#/\n/ text-with-nick)
-                   (html:pre :class "entry-multi" :id anchor-string
-                             (safe-text text-with-nick))
-                   (html:div :class "entry-single" :id anchor-string
-                             (html:span (safe-text text-with-nick))))]
-           [ip (if (pair? opt) (car opt) #f)])
+           [desc (html-format-entry text-with-nick anchor-string)])
+      ;; NB: DESC can never have "]]>" in it, since the external text has
+      ;; gone through safe-text and all >'s in it are replaced by &gt's.
       (values `("<item>\n"
                 "<title>" ,title "</title>\n"
                 "<link>" ,permalink "</link>\n"
@@ -152,11 +144,24 @@
                 "</item>\n")
               (make-state nick ip sec)))))
 
+(define (decompose-entry entry)
+  (match-let1 (nick (sec usec) text . opt) entry
+    (values nick sec usec text (if (pair? opt) (car opt) #f))))
+
+(define (make-anchor-string sec usec) (format "entry-~x-~2,'0x" sec usec))
+
 (define (make-permalink sec anchor)
   (build-path +archive-url+
               (format "~a#~a"
                       (sys-strftime "%Y/%m/%d" (sys-gmtime sec))
                       anchor)))
+
+(define (html-format-entry entry-text anchor-string)
+  (if (#/\n/ entry-text)
+    (html:pre :class "entry-multi" :id anchor-string
+              (safe-text entry-text))
+    (html:div :class "entry-single" :id anchor-string
+              (html:span (safe-text entry-text)))))  
 
 (define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s\"]*(\?[^#\s\"]*)?(#[^\s\"]*)?)/)
 
