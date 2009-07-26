@@ -29,12 +29,14 @@
                      :if-exists :append)
                    (update-rss)))
                 (emit-reply)))
-            :on-error (lambda (e)
-                        `(,(cgi-header)
-                          ,(html:pre
-                            (html-escape-string
-                             (call-with-output-string
-                               (cut with-error-to-port <> (cut report-error e))))))))
+            :on-error
+            (and +show-stack-trace+
+                 (lambda (e)
+                   `(,(cgi-header)
+                     ,(html:pre
+                       (html-escape-string
+                        (call-with-output-string
+                          (cut with-error-to-port <> (cut report-error e)))))))))
   0)
 
 (define (emit-reply)                    ;dummy

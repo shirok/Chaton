@@ -28,6 +28,9 @@
           +logdir+
 
           +docdir+ +status.js+ +status.scm+ +index.rdf+
+
+          +show-stack-trace+
+          
           with-output-to-file))
 (select-module chaton)
 
@@ -50,6 +53,9 @@
 (define-constant +status.js+ (build-path +docdir+ "var/status.js"))
 (define-constant +status.scm+ (build-path +docdir+ "var/status.scm"))
 (define-constant +index.rdf+ (build-path +docdir+ "index.rdf"))
+
+(define-constant +show-stack-trace+
+  (read-from-string "show-stack-trace-on-error"))
 
 ;;;
 ;;;  Entries
