@@ -55,7 +55,7 @@
 (define-constant +index.rdf+ (build-path +docdir+ "var/index.rdf"))
 
 (define-constant +show-stack-trace+
-  (read-from-string "show-stack-trace-on-error"))
+  (read-from-string "@@show-stack-trace-on-error@@"))
 
 ;;;
 ;;;  Entries
