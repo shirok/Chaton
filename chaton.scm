@@ -77,10 +77,12 @@
 
 ;; A convenience routine combinig above two.
 ;; returns <text-tree>, new-state, and new POS.
-(define (chaton-render-from-file file pos last-state . opts)
-  (let-optionals* opts ((renderer chaton-render-html-1))
-    (receive (es pos) (chaton-read-entries file pos)
-      (receive (tree new-state) (chaton-render es last-state renderer)
+(define (chaton-render-from-file file pos last-state
+                                 :key (renderer chaton-render-html-1)
+                                      (newest-first #f))
+  (receive (es pos) (chaton-read-entries file pos)
+    (let1 es2 (if newest-first (reverse es) es)
+      (receive (tree new-state) (chaton-render es2 last-state renderer)
         (values tree new-state pos)))))
 
 ;; Utility; render alist into S-expr or Json.  Assuming keys are symbols.

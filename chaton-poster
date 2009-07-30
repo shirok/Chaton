@@ -86,7 +86,9 @@
          "<title>" ,(html-escape-string "@@room-name@@") "</title>\n"
          "<link>" ,(html-escape-string "@@httpd-url@@@@url-path@@") "</link>\n"
          "<description>" ,(html-escape-string "@@room-description@@") "</description>\n"
-         ,(chaton-render-from-file +current-file+ 0 #f chaton-render-rss-1)
+         ,(chaton-render-from-file +current-file+ 0 #f
+                                   :renderer chaton-render-rss-1
+                                   :newest-first #t)
          "</channel>\n"
          "</rss>\n")))
     :atomic #t))

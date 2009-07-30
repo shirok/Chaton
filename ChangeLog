@@ -1,6 +1,9 @@
 2009-07-29  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (+show-stack-trace+): missing '@@' markers.
+	  (chaton-render-from-file): enable to switch the order of entries
+	  by a keyword argument newest-first.  It is better to reverse the
+	  order for RSS.
 
 2009-07-26  Shiro Kawai  <shiro@acm.org>
 
