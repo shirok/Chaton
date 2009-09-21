@@ -1,3 +1,9 @@
+2009-09-21  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton-render-rss-1): Use html-escape-string instead
+	  of safe-text for escaping TITLE elements of RSS, since safe-text
+	  may insert A elements which aren't allowed in TITLE.
+
 2009-07-29  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (+show-stack-trace+): missing '@@' markers.
