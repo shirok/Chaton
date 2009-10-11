@@ -1,5 +1,7 @@
 2009-10-10  Shiro Kawai  <shiro@acm.org>
 
+	* client/examples/chaton-twitter: Added a sample chaton-twitter bridge.
+
 	* client/chaton/client.scm (chaton-permalink): Added utility function
 	  to derive permalink from <chaton-client> and timestamp.
 

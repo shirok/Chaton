@@ -1,0 +1,190 @@
+#!/usr/bin/env gosh
+;;;
+;;;   A simple Chaton-Twitter bridge
+;;;
+
+;; - Chaton posts are forwarded to a twitter account, truncated if necessary,
+;;   plus a back link to the Chaton permalink using bit.ly.
+;;
+;; - Twitter replies are fowarded to Chaton as a new post.
+;;
+;; - In order to run this script, you need to have (1) a twitter account
+;;   and (2) a bit.ly account.  You have to provide these info via
+;;   a configuration file, which contain an assoc list of the following
+;;   items:
+;;
+;;     chaton-url         : chaton's room url to communicate (string)
+;;     twitter-username   : twitter's username (string)
+;;     twitter-password   : twitter's password (string)
+;;     bitly-username     : bit.ly's login name (string)
+;;     bitly-apikey       : bit.ly's api key (string)
+;;
+;;   Example config file entry:
+;;
+;;     (
+;;      (chaton-url       . "http://practical-scheme.net/chaton/chaton")
+;;      (twitter-username . "mytwitteraccount")
+;;      (twitter-password . "r%BA_@84g<")
+;;      (bitly-username   . "mybitlyaccount")
+;;      (bitly-apikey     . "R-48938gb8fea")
+;;     )
+;;
+
+(use gauche.threads)
+(use gauche.logger)
+(use gauche.parseopt)
+(use chaton.client)
+(use srfi-13)
+(use rfc.http)
+(use rfc.base64)
+(use sxml.ssax)
+(use sxml.sxpath)
+(use file.util)
+(use util.match)
+(use util.list)
+
+;;
+;; Configuration
+;;
+
+(define (read-configuration file)
+  (guard (e [(or (<system-error> e)
+                 (<read-error> e))
+             (exit 1 "Reading config file failed: ~a" (ref e'message))])
+    (let1 ss (file->sexp-list file)
+      (unless (and (= (length ss) 1) (list? (car ss)))
+        (exit 1 "Malformed configuration file: ~a" file))
+      (dolist [k '(twitter-username twitter-password bitly-username bitly-apikey)]
+        (unless (string? (assoc-ref (car ss) k))
+          (exit 1 "Entry for ~a is missing or non-string in ~a" k file)))
+      ;; Returns a closure to look up
+      (lambda (k) (assoc-ref (car ss) k)))))
+
+;;
+;; Bit.ly access layer
+;;
+(define (shorten-url config url)
+  (let1 r (make-request 'get "api.bit.ly"
+                        `("/shorten"
+                          (version "2.0.1") (format "xml") (longUrl ,url)
+                          (login   ,(config 'bitly-username))
+                          (apiKey  ,(config 'bitly-apikey))))
+    (unless (equal? ((if-car-sxpath '(// statusCode *text*)) r) "OK")
+      (log-format "bit.ly returned an error: ~s" r))
+    ((if-car-sxpath '(// results nodeKeyVal shortUrl *text*)) r)))
+
+;;
+;; Twitter access layer
+;;
+(define (twitter-auth-token config)
+  (let1 u:p #`",(config 'twitter-username):,(config 'twitter-password)"
+    #`"Basic ,(base64-encode-string u:p)"))
+
+(define (twitter-post config content)
+  (log-format "twitter-post: ~a" content)
+  (let1 r (make-request 'post "twitter.com" "/statuses/update.xml"
+                        (http-compose-query #f `((status ,content)) 'utf-8)
+                        :content-type "application/x-www-form-urlencoded"
+                        :authorization (twitter-auth-token config))
+    ((if-car-sxpath '(// status id *text*)) r)))
+
+(define (twitter-mentions config since-id)
+  (let1 r (make-request 'get "twitter.com"
+                        (if since-id
+                          `("/statuses/mentions.xml" (since_id ,since-id))
+                          "/statuses/mentions.xml")
+                        #f :authorization (twitter-auth-token config))
+    (sort-by (map (lambda (s)
+                    (map (cut <> s) (list (if-car-sxpath '(user name *text*))
+                                          (if-car-sxpath '(text *text*))
+                                          (if-car-sxpath '(id *text*)))))
+                  ((sxpath '(// status)) r))
+             (.$ x->integer caddr)
+             >)))
+
+(define (max-status-id mentions)
+  (if (null? mentions) #f (caddr (car mentions))))
+
+;;
+;; Integration
+;;
+
+(define (feed-to-twitter config client nick time text) 
+  (let ([content (format "~a: ~a" nick text)]
+        [link (shorten-url config (chaton-permalink client time))])
+    (twitter-post
+     config
+     (if (> (+ (string-length content) (string-length link) 1) 139)
+       (string-append (string-take content (- 138 (string-length link)))
+                      (string #\u2026 #\space)
+                      link)
+       (string-append content " " link)))))
+
+(define (make-observer config)
+  (lambda (client message)
+    (guard (e [else "observer error: ~a" (ref e'message) (raise e)])
+      (log-format "~a" message)
+      (cond
+       [(<chaton-error> message)
+        (log-format "chaton-error: ~a" (ref message'message))]
+       [(and-let* ([pos (assq-ref message 'pos)])
+          (< pos (chaton-pos client)))
+        #f]
+       [(assq-ref message 'content)
+        => (lambda (msgs)
+             (dolist [m msgs]
+               (match m
+                 [(nick time text . _)
+                  (unless (#/@twitter/ nick)
+                    (feed-to-twitter config client nick time text))]
+                 [_ #f])))]))))
+
+(define (kick-reply-watcher! client config)
+  (define (body)
+    (guard (e [else (log-format "watcher error: ~a" (e'message))])
+      (let loop ((since-id (max-status-id (twitter-mentions config #f))))
+        (sys-sleep 60)
+        (let1 mentions (twitter-mentions config since-id)
+          (dolist [m (reverse mentions)]
+            (match-let1 (user text id) m
+              (chaton-talk client #`",|user|@twitter" text)))
+          (loop (or (max-status-id mentions) since-id)))))
+    (body))
+
+  (thread-start! (make-thread body)))
+
+(define (main args)
+  (let-args (cdr args) ([logfile "l=s"] [else _ (usage)] . args)
+    (cond [(equal? logfile "-") (log-open #t)]
+          [(string? logfile) (log-open logfile)])
+    (match args
+      [(file)
+       (let* ([config (read-configuration "t.scm")]
+              [client (chaton-connect (config'chaton-url) "chaton-twitter"
+                                      (make-observer config))])
+         (kick-reply-watcher! client config)
+         (while #t (sys-pause)))]
+      [_ (usage)])))
+
+(define (usage)
+  (print "Usage: chaton-twitter [-l logfile] config-file")
+  (exit 0))
+
+;;
+;; Utility
+;;
+
+(define (make-request method server request-uri :optional body :rest opts)
+  (receive (status header body)
+      (case method
+        [(get)  (apply http-get server request-uri opts)]
+        [(post) (apply http-post server request-uri body opts)])
+    (unless (equal? status "200")
+      (log-format "~a returned status ~a: ~a" server status body)
+      (error "make-request error"))
+    (call-with-input-string body (cut ssax:xml->sxml <> '()))))
+
+
+;; Local variables:
+;; mode: scheme
+;; end:
