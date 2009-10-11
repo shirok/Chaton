@@ -95,9 +95,9 @@
                           "/statuses/mentions.xml")
                         #f :authorization (twitter-auth-token config))
     (sort-by (map (lambda (s)
-                    (map (cut <> s) (list (if-car-sxpath '(user name *text*))
-                                          (if-car-sxpath '(text *text*))
-                                          (if-car-sxpath '(id *text*)))))
+                    (map (cut <> s) `(,(if-car-sxpath '(user screen_name *text*))
+                                      ,(if-car-sxpath '(text *text*))
+                                      ,(if-car-sxpath '(id *text*)))))
                   ((sxpath '(// status)) r))
              (.$ x->integer caddr)
              >)))
@@ -135,11 +135,11 @@
              (dolist [m msgs]
                (match m
                  [(nick time text . _)
-                  (unless (#/@twitter/ nick)
-                    (feed-to-twitter config client nick time text))]
+                  (feed-to-twitter config client nick time text)]
                  [_ #f])))]))))
 
 (define (kick-reply-watcher! client config)
+  (define exclude-rx (string->regexp #`"@,(config'twitter-username)\\s*"))
   (define (body)
     (guard (e [else (log-format "watcher error: ~a" (e'message))])
       (let loop ((since-id (max-status-id (twitter-mentions config #f))))
@@ -147,10 +147,10 @@
         (let1 mentions (twitter-mentions config since-id)
           (dolist [m (reverse mentions)]
             (match-let1 (user text id) m
-              (chaton-talk client #`",|user|@twitter" text)))
+              (chaton-talk client #`",|user|@twitter"
+                           (regexp-replace-all exclude-rx text ""))))
           (loop (or (max-status-id mentions) since-id)))))
     (body))
-
   (thread-start! (make-thread body)))
 
 (define (main args)
