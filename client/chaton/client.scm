@@ -20,9 +20,11 @@
   (use text.tree)
   (use util.list)
   (use util.queue)
+  (use util.match)
   (export chaton-connect
           chaton-room-url chaton-room-name chaton-post-url chaton-comet-url
           chaton-icon-url chaton-cid chaton-pos chaton-observer-error
+          chaton-permalink
           chaton-message-dequeue!
           
           chaton-talk chaton-bye
@@ -89,6 +91,15 @@
             timeout-val)
           (begin0 (dequeue! (~ client'message-queue))
             (mutex-unlock! mutex)))))))
+
+;; utility method to return a permalink from the client and
+;; timestamp (<seconds> <microseconds>)
+(define (chaton-permalink client timestamp)
+  (match-let1 (secs usecs) timestamp
+    (build-path (~ client'room-url) "a"
+                (format "~a#~a"
+                        (sys-strftime "%Y/%m/%d" (sys-gmtime secs))
+                        (format "entry-~x-~2,'0x" secs usecs)))))
 
 ;;;
 ;;; Internal stuff

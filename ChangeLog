@@ -1,3 +1,8 @@
+2009-10-10  Shiro Kawai  <shiro@acm.org>
+
+	* client/chaton/client.scm (chaton-permalink): Added utility function
+	  to derive permalink from <chaton-client> and timestamp.
+
 2009-09-21  Shiro Kawai  <shiro@acm.org>
 
 	* chaton.scm (chaton-render-rss-1): Use html-escape-string instead
