@@ -159,7 +159,7 @@
           [(string? logfile) (log-open logfile)])
     (match args
       [(file)
-       (let* ([config (read-configuration "t.scm")]
+       (let* ([config (read-configuration file)]
               [client (chaton-connect (config'chaton-url) "chaton-twitter"
                                       (make-observer config))])
          (kick-reply-watcher! client config)
