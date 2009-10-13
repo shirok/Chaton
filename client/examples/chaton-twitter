@@ -126,9 +126,8 @@
       (log-format "~a" message)
       (cond
        [(<chaton-error> message)
-        (log-format "chaton-error: ~a" (ref message'message))]
-       [(and-let* ([pos (assq-ref message 'pos)])
-          (< pos (chaton-pos client)))
+        (log-format "chaton-error: ~a" (ref message'message)) #f]
+       [(and-let* ([pos (assq-ref message 'pos)]) (< pos (chaton-pos client)))
         #f]
        [(assq-ref message 'content)
         => (lambda (msgs)
@@ -136,12 +135,13 @@
                (match m
                  [(nick time text . _)
                   (feed-to-twitter config client nick time text)]
-                 [_ #f])))]))))
+                 [_ #f])))]
+       [else #f]))))
 
 (define (kick-reply-watcher! client config)
   (define exclude-rx (string->regexp #`"@,(config'twitter-username)\\s*"))
   (define (body)
-    (guard (e [else (log-format "watcher error: ~a" (e'message))])
+    (guard (e [else (log-format "watcher error: ~a" (ref e'message))])
       (let loop ((since-id (max-status-id (twitter-mentions config #f))))
         (sys-sleep 60)
         (let1 mentions (twitter-mentions config since-id)
@@ -150,14 +150,16 @@
               (chaton-talk client #`",|user|@twitter"
                            (regexp-replace-all exclude-rx text ""))))
           (loop (or (max-status-id mentions) since-id)))))
+    (log-format "body restarting")
     (body))
   (thread-start! (make-thread body)))
 
 (define (main args)
-  (let-args (cdr args) ([logfile "l=s"] [else _ (usage)] . args)
+  (let-args (cdr args) ([logfile "l=s"] [else _ (usage)] . restargs)
     (cond [(equal? logfile "-") (log-open #t)]
           [(string? logfile) (log-open logfile)])
-    (match args
+    (log-format "starting ~a" (car args))
+    (match restargs
       [(file)
        (let* ([config (read-configuration file)]
               [client (chaton-connect (config'chaton-url) "chaton-twitter"
@@ -183,7 +185,6 @@
       (log-format "~a returned status ~a: ~a" server status body)
       (error "make-request error"))
     (call-with-input-string body (cut ssax:xml->sxml <> '()))))
-
 
 ;; Local variables:
 ;; mode: scheme
