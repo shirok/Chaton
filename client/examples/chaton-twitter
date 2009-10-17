@@ -24,9 +24,9 @@
 ;;     (
 ;;      (chaton-url       . "http://practical-scheme.net/chaton/chaton")
 ;;      (twitter-username . "mytwitteraccount")
-;;      (twitter-password . "r%BA_@84g<")
+;;      (twitter-password . "mytwitterpassword")
 ;;      (bitly-username   . "mybitlyaccount")
-;;      (bitly-apikey     . "R-48938gb8fea")
+;;      (bitly-apikey     . "mybitlyapikey")
 ;;     )
 ;;
 
@@ -95,15 +95,23 @@
                           "/statuses/mentions.xml")
                         #f :authorization (twitter-auth-token config))
     (sort-by (map (lambda (s)
-                    (map (cut <> s) `(,(if-car-sxpath '(user screen_name *text*))
+                    (map (cut <> s) `(,(if-car-sxpath '(id *text*))
                                       ,(if-car-sxpath '(text *text*))
-                                      ,(if-car-sxpath '(id *text*)))))
+                                      ,(if-car-sxpath '(user screen_name *text*))
+                                      ,(if-car-sxpath '(user id *text*)))))
                   ((sxpath '(// status)) r))
-             (.$ x->integer caddr)
+             (.$ x->integer car)
              >)))
 
+(define (twitter-followers config)
+  (let1 r (make-request 'get "twitter.com"
+                        `("/followers/ids.xml"
+                          (screen_name ,(config'twitter-username)))
+                        #f :authorization (twitter-auth-token config))
+    ((sxpath '(// id *text*)) r)))
+
 (define (max-status-id mentions)
-  (if (null? mentions) #f (caddr (car mentions))))
+  (if (null? mentions) #f (car (car mentions))))
 
 ;;
 ;; Integration
@@ -138,19 +146,26 @@
                  [_ #f])))]
        [else #f]))))
 
+(define (forward-from-twitter config client since-id)
+  (let1 mentions (twitter-mentions config since-id)
+    (if (null? mentions)
+      since-id
+      (let ([followers (twitter-followers config)]
+            [rx (string->regexp #`"@,(config'twitter-username)\\s*")])
+        (dolist [m (reverse mentions)]
+          (match-let1 (id text user user-id) m
+            (when (member user-id followers)
+              (chaton-talk client #`",|user|@twitter"
+                           (regexp-replace-all rx text "")))))
+        (max-status-id mentions)))))
+
 (define (kick-reply-watcher! client config)
-  (define exclude-rx (string->regexp #`"@,(config'twitter-username)\\s*"))
   (define (body)
     (guard (e [else (log-format "watcher error: ~a" (ref e'message))])
       (let loop ((since-id (max-status-id (twitter-mentions config #f))))
         (sys-sleep 60)
-        (let1 mentions (twitter-mentions config since-id)
-          (dolist [m (reverse mentions)]
-            (match-let1 (user text id) m
-              (chaton-talk client #`",|user|@twitter"
-                           (regexp-replace-all exclude-rx text ""))))
-          (loop (or (max-status-id mentions) since-id)))))
-    (log-format "body restarting")
+        (log-format "watcher polling")
+        (loop (forward-from-twitter config client since-id))))
     (body))
   (thread-start! (make-thread body)))
 

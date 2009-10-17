@@ -1,3 +1,10 @@
+2009-10-16  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (forward-from-twitter): Only
+	  forward messages from twitter by the users who follow the bridged
+	  chaton room.  This eliminates bouncing of multipost messages,
+	  pikcing up unintended retweets, etc.
+
 2009-10-13  Shiro Kawai  <shiro@acm.org>
 
 	* client/examples/chaton-twitter (kick-reply-watcher!): fixed a bug
