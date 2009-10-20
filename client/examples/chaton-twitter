@@ -130,7 +130,7 @@
 
 (define (make-observer config)
   (lambda (client message)
-    (guard (e [else "observer error: ~a" (ref e'message) (raise e)])
+    (guard (e [else (log-format "observer error: ~a" (ref e'message)) #f])
       (log-format "~a" message)
       (cond
        [(<chaton-error> message)

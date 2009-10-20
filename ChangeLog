@@ -1,3 +1,9 @@
+2009-10-19  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (make-observer): return #f when
+	  observer captures an error, so that observer thread won't terminate
+	  when twitter or bit.ly access fail.
+
 2009-10-16  Shiro Kawai  <shiro@acm.org>
 
 	* client/examples/chaton-twitter (forward-from-twitter): Only
