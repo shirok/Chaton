@@ -166,6 +166,7 @@
         (sys-sleep 60)
         (log-format "watcher polling")
         (loop (forward-from-twitter config client since-id))))
+    (sys-sleep 60)
     (body))
   (thread-start! (make-thread body)))
 
