@@ -172,8 +172,8 @@
 
 (define (main args)
   (let-args (cdr args) ([logfile "l=s"] [else _ (usage)] . restargs)
-    (cond [(equal? logfile "-") (log-open #t)]
-          [(string? logfile) (log-open logfile)])
+    (cond [(equal? logfile "-") (common-log-open #t)]
+          [(string? logfile) (common-log-open logfile)])
     (log-format "starting ~a" (car args))
     (match restargs
       [(file)
@@ -187,6 +187,8 @@
 (define (usage)
   (print "Usage: chaton-twitter [-l logfile] config-file")
   (exit 0))
+
+(define (common-log-open dst) (log-open dst) (chaton-log-open dst))
 
 ;;
 ;; Utility
