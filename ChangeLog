@@ -1,3 +1,10 @@
+2009-11-13  Shiro Kawai  <shiro@acm.org>
+
+	* client/chaton/client.scm (make-handler): When an unexpected error
+	  occurs within observer loop, restart the thread loop instead of
+	  exitting the thread.  Unexpected error can occur time to time,
+	  e.g. temporary network failures.
+
 2009-10-26  Shiro Kawai  <shiro@acm.org>
 
 	* client/examples/chaton-twitter (kick-reply-watcher!): Insert delay

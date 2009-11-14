@@ -118,9 +118,9 @@
                        (set! (~ client'observer-error) e)
                        (log-format *chaton-log-drain*
                                    "observer thread error: ~a" (~ e'message))
-                       (if (<chaton-error> e)
-                         (handle-it client e)
-                         (raise e))])
+                       (when (<chaton-error> e) (handle-it client e))
+                       (sys-sleep 3)    ;avoid busy loop
+                       #f])
               (let1 packet (%fetch client)
                 (let ([new-pos (assq-ref packet 'pos)]
                       [new-cid (assq-ref packet 'cid)])
