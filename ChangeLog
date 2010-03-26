@@ -1,3 +1,9 @@
+2010-03-25  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-archiver (filter-entry): Fixed a bug that truncated current.dat
+	  when it has less than MIN-ENTRIES entries and all entries are
+	  before cut-off date.
+
 2009-11-13  Shiro Kawai  <shiro@acm.org>
 
 	* client/chaton/client.scm (make-handler): When an unexpected error

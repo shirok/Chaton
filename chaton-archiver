@@ -118,7 +118,7 @@
   (let* ([num-entries (length entries)]
          [erase-limit (if (and min-entries (>= num-entries min-entries))
                         (- num-entries min-entries)
-                        +inf.0)])
+                        0)])
     (reverse (values-ref
               (fold2 (lambda (e r cnt)
                        (values (if (or (>= cnt erase-limit)
