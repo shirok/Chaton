@@ -1,3 +1,7 @@
+2010-03-26  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-archiver (filter-entry): Last fix was incorrect.  Fixed again.
+
 2010-03-25  Shiro Kawai  <shiro@acm.org>
 
 	* chaton-archiver (filter-entry): Fixed a bug that truncated current.dat

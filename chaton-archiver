@@ -116,9 +116,7 @@
 
 (define (filter-entry entries check-date min-entries)
   (let* ([num-entries (length entries)]
-         [erase-limit (if (and min-entries (>= num-entries min-entries))
-                        (- num-entries min-entries)
-                        0)])
+         [erase-limit (if min-entries (- num-entries min-entries) +inf.0)])
     (reverse (values-ref
               (fold2 (lambda (e r cnt)
                        (values (if (or (>= cnt erase-limit)
