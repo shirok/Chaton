@@ -177,7 +177,7 @@
         (unless (zero? rest) (loop rest))))
     (cond [(< timestamp (- (sys-time) 180))
            (log-format "watchdog barks.  restarting watcher thread.")
-           (pthread-terminate! thr)
+           (thread-terminate! thr)
            (watchdog (thread-start! (make-thread body)))]
           [else (watchdog thr)]))
   (let1 thr (thread-start! (make-thread body))
