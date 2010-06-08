@@ -1,3 +1,8 @@
+2010-06-07  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter: Switched from Basic authentication
+	  to OAuth to access Twitter.  Requires Gauche-net-twitter package.
+
 2010-04-12  Shiro Kawai  <shiro@acm.org>
 
 	* client/examples/chaton-twitter (kick-reply-watcher!): run a watchdog
