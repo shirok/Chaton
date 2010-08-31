@@ -1,3 +1,9 @@
+2010-08-31  Shiro Kawai  <shiro@acm.org>
+
+	* chaton-apilogin: Allow returning result in json if "s=0" parameter
+	  is given.
+	* tests/apilogin.scm, tests/Makefile: Added apilogin test.
+
 2010-06-07  Shiro Kawai  <shiro@acm.org>
 
 	* client/examples/chaton-twitter: Switched from Basic authentication

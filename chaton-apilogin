@@ -1,12 +1,15 @@
 #!/usr/bin/env gosh
 ;; A prototype of API access gateway
 
+(add-load-path "@@server-data-dir@@")
+
 (use www.cgi)
 (use rfc.http)
 (use file.util)
 (use util.list)
 (use srfi-1)
 (use gauche.logger)
+(use chaton)
 
 (define-constant +logfile+ "@@server-data-dir@@/logs/api.log")
 (define-constant +poster+  "@@httpd-url@@@@url-path@@@@cgi-script@@")
@@ -26,9 +29,10 @@
       (check-login ps))))
 
 (define (check-login ps)
-  (let1 who (cgi-get-parameter "who" ps)
+  (let ([who (cgi-get-parameter "who" ps)]
+        [fmt (cgi-get-parameter "s" ps :default "1")]) ; default for sexpr and s=0 for json for backward compatibility.
     (cond [(not who) (reply-error "401 Unauthorized" "'who' parameter missing")]
-          [(get-cid) => (cut reply-ok who <>)]
+          [(get-cid) => (cute reply-ok who <> (equal? fmt "1"))]
           [(reply-error "503 Service Unavailable" "couldn't obtain cid")])))
 
 (define (get-cid)
@@ -41,13 +45,15 @@
                (let1 p (read-from-string body)
                  (and (list? p) (every pair? p) p))))))))
 
-(define (reply-ok name params)
+(define (reply-ok name params sexp?)
   (log-format "authenticated ~a (~a)" name (remote-addr))
-  `(,(cgi-header :content-type "application/x-sexpr; charset=utf-8"
+  `(,(cgi-header :content-type #`"application/,(if sexp? 'x-sexpr 'json); \
+                                  charset=utf-8"
                  :cache-control "no-cache")
-    ,(write-to-string
+    ,(chaton-alist->stree
       `((post-uri . ,+poster+) (comet-uri . ,+viewer+)
-        (icon-uri . ,+icon+) (room-name . "@@room-name@@") ,@params))))
+        (icon-uri . ,+icon+) (room-name . "@@room-name@@") ,@params)
+      sexp?)))
 
 (define (reply-error msg reason)
   (log-format "~a: ~a (~a)" msg reason (remote-addr))
