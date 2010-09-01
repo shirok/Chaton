@@ -89,9 +89,15 @@
 (define (chaton-alist->stree alist sexp?)
   (if sexp?
     (write-to-string alist)
-    `("{",(intersperse "," (map (^(p)`(,(write-to-string (x->string (car p)))
-                                       ":",(write-to-string (cdr p))))
-                                alist))"}")))
+    (letrec ([obj (lambda (x)
+                    (if (list? x)
+                      (array x)
+                      (write-to-string x)))]
+             [array (lambda (xs)
+                      `("[" ,(intersperse "," (map obj xs)) "]"))])
+      `("{",(intersperse "," (map (^(p)`(,(write-to-string (x->string (car p)))
+                                         ":",(obj (cdr p))))
+                                  alist))"}"))))
 
 ;;;
 ;;;  rendering

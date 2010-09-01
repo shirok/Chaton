@@ -1,5 +1,15 @@
 2010-08-31  Shiro Kawai  <shiro@acm.org>
 
+	* chaton.scm (chaton-alist->stree): Render nested lists in the value
+	  of the map as an array in json mode.
+	* chaton-viewer: Changed API to recognize "s=0" as a jsom mode which
+	  returns the same info as Sexpr mode.  The default (missing 's')
+	  behavior is a special format just for web interface.
+	  THIS IS AN INCOMPATIBLE CHANGE: It breaks a client that sends
+	  's' parameter with a value other than 1 and expects Sexpr.
+	  Clients using chaton.client module won't break, for the module
+	  already sends '1'.
+
 	* chaton-apilogin: Allow returning result in json if "s=0" parameter
 	  is given.
 	* tests/apilogin.scm, tests/Makefile: Added apilogin test.

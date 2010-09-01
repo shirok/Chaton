@@ -148,9 +148,9 @@
                 [(eq? e 'expired) (log-child csock "cid expired")]
                 [(eq? e 'processed) #f]
                 [else (log-child csock "error ~s" (~ e'message))])
-        (match-let1 (pos cid sexp?) (get-header csock (socket-input-port csock))
+        (match-let1 (pos cid fmt) (get-header csock (socket-input-port csock))
           (if pos
-            (emit-tail csock pos cid sexp?)
+            (emit-tail csock pos cid fmt)
             (emit-skeleton csock cid))))
     (socket-close csock)))
 
@@ -168,7 +168,11 @@
         (rxmatch-case path
          [test not `(,(cgi-get-parameter "p" parms :convert string->number) ;pos
                      ,(cgi-get-parameter "c" parms :convert string->number) ;cid
-                     ,(cgi-get-parameter "s" parms))]
+                     ,(case (cgi-get-parameter "s" parms
+                                               :convert string->number)
+                        [(0) 'json]
+                        [(1) 'sexpr]
+                        [else 'preformatted]))]
          ;; The rest raises 'processed and won't return.
          [#/^getcid$/ () (emit-cid csock (cgi-get-parameter "cred" parms))]
          [#/^robots\.txt$/ () (emit-robots.txt csock)]
@@ -205,10 +209,13 @@
 ;;    We send back ping packet to the client anyway.  This is necessary
 ;;    to detect if the client is gone.
 
-(define (emit-tail csock pos cid sexp?)
+;; fmt: one of sexpr, json or preformatted
+(define (emit-tail csock pos cid fmt)
   (define ccnt (get-num-clients))
   (define time-started (sys-time))
   (define ncid (client-connected csock cid)) ; possibly update cid
+  (define sexp? (eq? fmt 'sexpr))
+  (define pref? (eq? fmt 'preformatted))
   (unless ncid                ; only happends when +loose-login+ is #f
     (send-expired csock sexp?) (raise 'expired))
   (let loop ()
@@ -229,11 +236,11 @@
                (send-ping csock ncid pos sexp?) #t)] ; soft timeout, ccnt change
             [else (loop)])]
           [(< pos *size*)
-           (let ([s *size*] [content (content-retrieve pos sexp?)])
+           (let ([s *size*] [content (content-retrieve pos pref?)])
              (mutex-unlock! *mutex*)
              (send-diff csock ncid pos s content sexp?))]
           [else                         ;file is truncated?
-           (let ([s *size*] [content (content-retrieve 0 sexp?)])
+           (let ([s *size*] [content (content-retrieve 0 pref?)])
              (mutex-unlock! *mutex*)
              (send-diff csock ncid 0 s content sexp?))])))
 
@@ -264,10 +271,10 @@
      (cid . ,cid) (content . ,(or content (if sexp? '() ""))))
    sexp?))
 
-(define (content-retrieve start sexp?)
-  (define tmap (if sexp? *sexp-map* *text-map*))
-  (define unit (if sexp? '() ""))
-  (define merge (if sexp? (.$ concatenate reverse) string-concatenate-reverse))
+(define (content-retrieve start pref?)
+  (define tmap (if pref? *text-map* *sexp-map*))
+  (define unit (if pref? "" '()))
+  (define merge (if pref? string-concatenate-reverse (.$ concatenate reverse)))
   (do ([key start (tree-map-successor tmap key)]
        [r '() (cons (tree-map-get tmap key unit) r)])
       [(not key) (merge r)]))
