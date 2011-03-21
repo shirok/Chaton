@@ -148,23 +148,25 @@
                 [(eq? e 'expired) (log-child csock "cid expired")]
                 [(eq? e 'processed) #f]
                 [else (log-child csock "error ~s" (~ e'message))])
-        (match-let1 (pos cid fmt) (get-header csock (socket-input-port csock))
+        (match-let1 (pos cid fmt hmv)
+            (get-header csock (socket-input-port csock))
           (if pos
-            (emit-tail csock pos cid fmt)
-            (emit-skeleton csock cid))))
+            (emit-tail csock pos cid fmt hmv)
+            (emit-skeleton csock cid hmv))))
     (socket-close csock)))
 
 ;; returns the integer parameter given to the query
 (define (get-header csock in)
   (let1 req (read-line in)
     (unless (string? req) (raise 'disconnected))
-    (let1 m (#/^GET\s+\/([^?\s]+)?(?:\?(\S+)?)?\s+HTTP\/1.1/i req)
+    (let1 m (#/^GET\s+\/([^?\s]+)?(?:\?(\S+)?)?\s+HTTP\/1.([10])/i req)
       (log-child csock "request ~s" req)
       (rfc822-read-headers in)
-      (unless m (emit-plain csock "400" "Bad Request"))
+      (unless m (emit-plain csock "400" "Bad Request" 0))
       (let ([path (m 1)]
             [parms (cond [(m 2) => (cut cgi-parse-parameters :query-string <>)]
-                         [else '()])])
+                         [else '()])]
+            [hmv (x->integer (m 3))])   ;http minor version
         (rxmatch-case path
          [test not `(,(cgi-get-parameter "p" parms :convert string->number) ;pos
                      ,(cgi-get-parameter "c" parms :convert string->number) ;cid
@@ -172,29 +174,30 @@
                                                :convert string->number)
                         [(0) 'json]
                         [(1) 'sexpr]
-                        [else 'preformatted]))]
+                        [else 'preformatted])
+                     ,hmv)]
          ;; The rest raises 'processed and won't return.
-         [#/^getcid$/ () (emit-cid csock (cgi-get-parameter "cred" parms))]
-         [#/^robots\.txt$/ () (emit-robots.txt csock)]
-         [else (emit-plain csock "404" "Not Found")])))))
+         [#/^getcid$/ () (emit-cid csock (cgi-get-parameter "cred" parms) hmv)]
+         [#/^robots\.txt$/ () (emit-robots.txt csock hmv)]
+         [else (emit-plain csock "404" "Not Found" hmv)])))))
 
 ;; NB: it may be more efficient if we send out existing content here,
 ;; instead of letting client to fetch it immediately after this reply.
 ;; A possible option for future development.
-(define (emit-skeleton csock cid)
+(define (emit-skeleton csock cid hmv)
   (let ([s (tree->string (make-skeleton (cond [(and cid (valid-cid? cid)) cid]
                                               [+loose-login+ (new-client-cid)]
-                                              [else (emit-bad-cid csock)])))]
+                                              [else (emit-bad-cid csock hmv)])))]
         [out (socket-output-port csock)])
-    (write-tree `("HTTP/1.1 200 OK\r\n\
+    (write-tree `("HTTP/1.",hmv" 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
                    Cache-control: no-cache\r\n\
                    Content-length: ",(string-size s)"\r\n\r\n",s)
                 out)
     (flush out)))
 
-(define (emit-bad-cid csock)
-  (emit-general csock "400" "text/html" (tree->string (make-bad-cid))))
+(define (emit-bad-cid csock hmv)
+  (emit-general csock "400" "text/html" (tree->string (make-bad-cid)) hmv))
 
 ;; Let the client wait until one of the following condition is met:
 ;;
@@ -210,56 +213,56 @@
 ;;    to detect if the client is gone.
 
 ;; fmt: one of sexpr, json or preformatted
-(define (emit-tail csock pos cid fmt)
+(define (emit-tail csock pos cid fmt hmv)
   (define ccnt (get-num-clients))
   (define time-started (sys-time))
   (define ncid (client-connected csock cid)) ; possibly update cid
   (define sexp? (eq? fmt 'sexpr))
   (define pref? (eq? fmt 'preformatted))
   (unless ncid                ; only happends when +loose-login+ is #f
-    (send-expired csock sexp?) (raise 'expired))
+    (send-expired csock sexp? hmv) (raise 'expired))
   (let loop ()
     (mutex-lock! *mutex*)
     (cond [(equal? pos *size*)  ; wait until *size* changes or timeout
            (cond
             [(not (eqv? ncid cid)) ; this is reconnection after server restart.
              (mutex-unlock! *mutex*)
-             (send-ping csock ncid pos sexp?)]
+             (send-ping csock ncid pos sexp? hmv)]
             [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15))) (loop)]
             [(not (valid-cid? ncid)) ; client already reconnected. abandon self.
              (raise 'dup)]
             [(< time-started (- (sys-time) (+ 240 (random-integer 120))))
              (mutex-unlock! *mutex*)
-             (send-ping csock ncid pos sexp?)] ; hard timeout
+             (send-ping csock ncid pos sexp? hmv)] ; hard timeout
             [(and-let* ([ccnt2 (get-num-clients)] [ (not (= ccnt ccnt2)) ])
                (mutex-unlock! *mutex*)
-               (send-ping csock ncid pos sexp?) #t)] ; soft timeout, ccnt change
+               (send-ping csock ncid pos sexp? hmv) #t)] ; soft timeout, ccnt change
             [else (loop)])]
           [(< pos *size*)
            (let ([s *size*] [content (content-retrieve pos pref?)])
              (mutex-unlock! *mutex*)
-             (send-diff csock ncid pos s content sexp?))]
+             (send-diff csock ncid pos s content sexp? hmv))]
           [else                         ;file is truncated?
            (let ([s *size*] [content (content-retrieve 0 pref?)])
              (mutex-unlock! *mutex*)
-             (send-diff csock ncid 0 s content sexp?))])))
+             (send-diff csock ncid 0 s content sexp? hmv))])))
 
-(define (send-diff csock cid start end content sexp?)
+(define (send-diff csock cid start end content sexp? hmv)
   (log-child csock "sending ~s-~s" start end)
-  (send-reply csock cid end content sexp?))
+  (send-reply csock cid end content sexp? hmv))
 
-(define (send-ping csock cid pos sexp?)
+(define (send-ping csock cid pos sexp? hmv)
   (log-child csock "ping back ~a" cid)
-  (send-reply csock cid pos #f sexp?))
+  (send-reply csock cid pos #f sexp? hmv))
 
-(define (send-expired csock sexp?)
-  (send-reply csock -1 0 #f sexp?))
+(define (send-expired csock sexp? hmv)
+  (send-reply csock -1 0 #f sexp? hmv))
 
-(define (send-reply csock cid pos content sexp?)
+(define (send-reply csock cid pos content sexp? hmv)
   (client-replied csock cid)
   (let ([packet (tree->string (make-packet cid pos content sexp?))]
         [out (socket-output-port csock)])
-    (write-tree `("HTTP/1.1 200 OK\r\n\
+    (write-tree `("HTTP/1.",hmv" 200 OK\r\n\
       Content-type: application/",(if sexp? "x-sexpr" "json")"; charset=utf-8\r\n\
       Cache-control: no-cache\r\n\
       Content-length: ",(string-size packet)"\r\n\r\n",packet) out)
@@ -280,26 +283,27 @@
       [(not key) (merge r)]))
 
 ;; Other auxiliary contents.  These raises 'processed after emitting content.
-(define (emit-plain csock stat desc)
+(define (emit-plain csock stat desc hmv)
   (log-child csock #`",stat ,desc")
-  (emit-general csock stat "text/plain" desc))
+  (emit-general csock stat "text/plain" desc hmv))
 
-(define (emit-robots.txt csock)
+(define (emit-robots.txt csock hmv)
   (log-child csock "200 OK")
-  (emit-general csock "200 OK" "text/plain" "User-Agent: *\nDisallow: /\n"))
+  (emit-general csock "200 OK" "text/plain" "User-Agent: *\nDisallow: /\n" hmv))
 
-(define (emit-cid csock cred)
+(define (emit-cid csock cred hmv)
   (if (equal? cred *server-cred*)
     (let1 cid (new-client-cid)
       (log-child csock "getcid OK ~a" cid)
       (emit-general csock "200 OK" "application/x-sexpr"
-                    (write-to-string `((cid . ,cid) (pos . ,*size*)))))
+                    (write-to-string `((cid . ,cid) (pos . ,*size*)))
+                    hmv))
     (begin
       (log-child csock "getcid credential mismatch")
-      (emit-general csock "503" "text/plain" "bad credential"))))
+      (emit-general csock "503" "text/plain" "bad credential" hmv))))
 
-(define (emit-general csock status ctype content)
-  (write-tree `("HTTP/1.1 ",status"\r\n\
+(define (emit-general csock status ctype content hmv)
+  (write-tree `("HTTP/1.",hmv" ",status"\r\n\
                 Content-type: ",ctype"; charset=utf-8\r\n\
                 Content-length: ",(string-size content)"\r\n\r\n",content)
               (socket-output-port csock))
