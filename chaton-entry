@@ -14,7 +14,7 @@
   (export entry-main))
 (select-module chaton.entry)
 
-(define-constant +chaton-url+ "http://practical-scheme.net/chaton/")
+(define-constant +chaton-url+ "http://chaton.practical-scheme.net/")
 (define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
 (define-constant +credential+ "@@server-data-dir@@auth")
 
@@ -65,7 +65,7 @@
      (html:div :class "room-links"
       (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
       " | "(html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
-      " | "(html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
+      " | "(html:a :href "http://chaton.practical-scheme.net/doc/Tools" "Tools"))
      )
     ;; Left pane --------------
     (html:div :id "left-pane"

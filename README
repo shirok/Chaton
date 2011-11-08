@@ -123,7 +123,7 @@ Directory structure:
     $HTDOCSDIR/var/status.{js,scm}  The comet server periodically dumps
                  the room status into these files.  You can poll these files
                  to find out the current status of the room.
-                 See http://practical-scheme.net/chaton/doc?Retrieving%20Room%20Status
+                 See http://chaton.practical-scheme.net/doc?Retrieving%20Room%20Status
                  for the details.
 
 Build a chat room:

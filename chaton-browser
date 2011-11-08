@@ -54,14 +54,14 @@
           :id "right-pane"
           (html:div :class "chaton-logo"
                     "Built on "
-                    (html:a :href "http://practical-scheme.net/chaton/"
+                    (html:a :href "http://chaton.practical-scheme.net/"
                             "Chaton"))
           (html:div :class "room-links"
                     (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
                     " | "
                     (html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
                     " | "
-                    (html:a :href "http://practical-scheme.net/chaton/doc/Tools" "Tools"))
+                    (html:a :href "http://chaton.practical-scheme.net/doc/Tools" "Tools"))
           (monthly-navigate y m d))
          (html:div
           :id "left-pane"
