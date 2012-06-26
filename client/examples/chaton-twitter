@@ -136,7 +136,7 @@
 (define (forward-from-twitter config client since-id)
   (let* ([cred (config->twitter-cred config)]
          [username (config'twitter-username)]
-         [mentions (twitter-mentions cred :since-id since-id)])
+         [mentions (get-mentions-without-RT cred since-id)])
     (if (null? mentions)
       since-id
       (let ([followers (twitter-followers/ids cred :screen-name username)]
@@ -147,6 +147,17 @@
               (chaton-talk client #`",|user|@twitter"
                            (regexp-replace-all rx text "")))))
         (max-status-id mentions)))))
+
+(define (get-mentions-without-RT cred since-id)
+  (define RTed? (if-car-sxpath '(retweeted_status user)))
+  (define id (if-car-sxpath '(id *text*)))
+  (define text (if-car-sxpath '(text *text*)))
+  (define username (if-car-sxpath '(user screen_name *text*)))
+  (define userid (if-car-sxpath '(user id *text*)))
+  ($ filter-map (^s (and (not (RTed? s))
+                       `(,(id s) ,(text s) ,(username s) ,(userid s))))
+     $ (sxpath '(// status))
+     $ values-ref (twitter-mentions/sxml cred :since-id since-id) 0))
 
 (define (kick-reply-watcher! client config)
   (define timestamp 0)
