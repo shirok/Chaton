@@ -54,7 +54,10 @@
 (use file.util)
 (use util.match)
 (use util.list)
-(use net.twitter)
+(use net.twitter.timeline :prefix tw:)
+(use net.twitter.status :prefix tw:)
+(use net.twitter.friendship :prefix tw:)
+(use net.twitter.core)
 
 ;;
 ;; Configuration
@@ -107,7 +110,7 @@
   (let ([content (format "~a: ~a" nick text)]
         [link (shorten-url config (chaton-permalink client time))])
     (log-format "twitter-post: ~a" content)
-    (twitter-update
+    (tw:update
      (config->twitter-cred config)
      (if (> (+ (string-length content) (string-length link) 1) 139)
        (string-append (string-take content (- 138 (string-length link)))
@@ -139,7 +142,7 @@
          [mentions (get-mentions-without-RT cred since-id)])
     (if (null? mentions)
       since-id
-      (let ([followers (twitter-followers/ids cred :screen-name username)]
+      (let ([followers (tw:followers/ids cred :screen-name username)]
             [rx (string->regexp #`"@,|username|\\s*")])
         (dolist [m (reverse mentions)]
           (match-let1 (id text user user-id) m
@@ -149,22 +152,22 @@
         (max-status-id mentions)))))
 
 (define (get-mentions-without-RT cred since-id)
-  (define RTed? (if-car-sxpath '(retweeted_status user)))
-  (define id (if-car-sxpath '(id *text*)))
-  (define text (if-car-sxpath '(text *text*)))
-  (define username (if-car-sxpath '(user screen_name *text*)))
-  (define userid (if-car-sxpath '(user id *text*)))
+  (define (RTed? s) (eq? (assoc-ref s '("retweeted")) 'true))
+  (define (id s) (assoc-ref s "id_str"))
+  (define (text s) (assoc-ref s "text"))
+  (define (username s) (assoc-ref (assoc-ref s "user") "screen_name"))
+  (define (userid s) (assoc-ref (assoc-ref s "user") "id"))
   ($ filter-map (^s (and (not (RTed? s))
-                       `(,(id s) ,(text s) ,(username s) ,(userid s))))
-     $ (sxpath '(// status))
-     $ values-ref (twitter-mentions/sxml cred :since-id since-id) 0))
+                         `(,(id s) ,(text s) ,(username s) ,(userid s))))
+     $ vector->list
+     $ values-ref (tw:mentions-timeline/json cred :since-id since-id) 0))
 
 (define (kick-reply-watcher! client config)
   (define timestamp 0)
   (define cred (config->twitter-cred config))
   (define (body)
     (guard (e [else (log-format "watcher error: ~a" (ref e'message))])
-      (let loop ((since-id (max-status-id (twitter-mentions cred))))
+      (let loop ((since-id (max-status-id (tw:mentions cred))))
         (set! timestamp (sys-time))
         (sys-sleep 60)
         (log-format "watcher polling")
