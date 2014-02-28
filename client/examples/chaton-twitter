@@ -113,7 +113,7 @@
     (tw:update
      (config->twitter-cred config)
      (if (> (+ (string-length content) (string-length link) 1) 139)
-       (string-append (string-take content (- 138 (string-length link)))
+       (string-append (string-take content (- 137 (string-length link)))
                       (string #\u2026 #\space)
                       link)
        (string-append content " " link)))))
