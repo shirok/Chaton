@@ -9,7 +9,7 @@
 ;; - Twitter replies are fowarded to Chaton as a new post.
 ;;
 ;; - You need Gauche-net-twitter package.
-;;   http://github.com/shirok/Gauche-net-twitter
+;;   https://github.com/mhayashi1120/Gauche-net-twitter
 ;;
 ;; - In order to run this script, you need to have (1) twitter API access
 ;;   keys (consumer key and consumer secret), (2) twitter access tokens
