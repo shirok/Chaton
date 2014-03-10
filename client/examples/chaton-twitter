@@ -107,16 +107,16 @@
 ;;
 
 (define (feed-to-twitter config client nick time text) 
-  (let ([content (format "~a: ~a" nick text)]
-        [link (shorten-url config (chaton-permalink client time))])
-    (log-format "twitter-post: ~a" content)
-    (tw:update
-     (config->twitter-cred config)
-     (if (> (+ (string-length content) (string-length link) 1) 139)
-       (string-append (string-take content (- 137 (string-length link)))
-                      (string #\u2026 #\space)
-                      link)
-       (string-append content " " link)))))
+  (let* ([content (format "~a: ~a" nick text)]
+         [link (shorten-url config (chaton-permalink client time))]
+         [post (if (> (+ (string-length content) (string-length link) 1) 139)
+                 (string-append (string-take content
+                                             (- 137 (string-length link)))
+                                (string #\u2026 #\space)
+                                link)
+                 (string-append content " " link))])
+    (log-format "twitter-post: ~s" post)
+    (tw:update (config->twitter-cred config) post)))
 
 (define (make-observer config)
   (lambda (client message)
