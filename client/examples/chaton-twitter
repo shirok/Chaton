@@ -174,7 +174,8 @@
     (sys-sleep 900)
     (follower-observer))
   (define (body)
-    (guard (e [else (log-format "watcher error: ~a" (ref e'message))])
+    (guard (e [else (log-format "twitter stream error: ~a" (ref e'message))])
+      (log-format "twitter stream start")
       (tw:user-stream cred stream-handler))
     (body))
 
