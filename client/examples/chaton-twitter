@@ -54,7 +54,7 @@
 (use file.util)
 (use util.match)
 (use util.list)
-(use net.twitter.timeline :prefix tw:)
+(use net.twitter.stream :prefix tw:)
 (use net.twitter.status :prefix tw:)
 (use net.twitter.friendship :prefix tw:)
 (use net.twitter.core)
@@ -99,9 +99,6 @@
     :access-token (config 'twitter-access-token)
     :access-token-secret (config 'twitter-access-token-secret)))
 
-(define (max-status-id mentions)
-  (if (null? mentions) #f (car (car mentions))))
-
 ;;
 ;; Integration
 ;;
@@ -137,56 +134,54 @@
                  [_ #f])))]
        [else #f]))))
 
-(define (forward-from-twitter config client since-id)
-  (let* ([cred (config->twitter-cred config)]
-         [username (config'twitter-username)]
-         [mentions (get-mentions-without-RT cred since-id)])
-    (if (null? mentions)
-      since-id
-      (let ([followers (tw:followers/ids cred :screen-name username)]
-            [rx (string->regexp #`"@,|username|\\s*")])
-        (dolist [m (reverse mentions)]
-          (match-let1 (id text user user-id) m
-            (when (member user-id followers)
-              (chaton-talk client #`",|user|@twitter"
-                           (regexp-replace-all rx text "")))))
-        (max-status-id mentions)))))
+(define (forward-from-twitter client username text)
+  (chaton-talk client #`",|username|@twitter" text))
 
-(define (get-mentions-without-RT cred since-id)
-  (define (RTed? s) (eq? (assoc-ref s '("retweeted")) 'true))
-  (define (id s) (assoc-ref s "id_str"))
-  (define (text s) (assoc-ref s "text"))
-  (define (username s) (assoc-ref (assoc-ref s "user") "screen_name"))
-  (define (userid s) (assoc-ref (assoc-ref s "user") "id"))
-  ($ filter-map (^s (and (not (RTed? s))
-                         `(,(id s) ,(text s) ,(username s) ,(userid s))))
-     $ vector->list
-     $ values-ref (tw:mentions-timeline/json cred :since-id since-id) 0))
+(define (get-follower-mention config followers s)
+  (and-let* ([id (assoc-ref s "id")]
+             [text (assoc-ref s "text")]
+             ;; without RT status
+             [(not (assoc-ref s "retweeted_status"))]
+             [user (assoc-ref s "user")]
+             [username (assoc-ref user "screen_name")]
+             [user-id (assoc-ref user "id")]
+             [me (config'twitter-username)]
+             [(member user-id followers)]
+             [rx (string->regexp #`"@,|me|\\s*")]
+             ;; filter out friends status.
+             [(rx text)])
+    (list username (regexp-replace-all rx text ""))))
 
 (define (kick-reply-watcher! client config)
-  (define timestamp 0)
   (define cred (config->twitter-cred config))
+  (define followers '())
+  (define (stream-handler _ json)
+    (let1 event (assoc-ref json "event")
+      (cond
+       [(equal? event "follow")
+        (and-let* ([me (config'twitter-username)]
+                   [user (assoc-ref json "source")]
+                   [(not (equal? (assoc-ref user "screen_name") me))]
+                   [user-id (assoc-ref user "id")])
+          (unless (memq user-id followers)
+            (set! followers (cons user-id followers))))]
+       [(and (not event) (get-follower-mention config followers json)) =>
+        (^ [args] (apply forward-from-twitter client args))])))
+  ;; observe followers (To check unfollower)
+  (define (follower-observer)
+    (guard (e [else (log-format "twitter api error: ~a" (ref e'message))])
+      (let1 me (config'twitter-username)
+        (set! followers (tw:followers/ids cred :screen-name me))))
+    (sys-sleep 900)
+    (follower-observer))
   (define (body)
-    (guard (e [else (log-format "watcher error: ~a" (ref e'message))])
-      (let loop ((since-id (max-status-id (tw:mentions cred))))
-        (set! timestamp (sys-time))
-        (sys-sleep 120)
-        (log-format "watcher polling")
-        (loop (forward-from-twitter config client since-id))))
-    (set! timestamp (sys-time))
-    (sys-sleep 120)
+    (guard (e [else (log-format "twitter stream error: ~a" (ref e'message))])
+      (log-format "twitter stream start")
+      (tw:user-stream cred stream-handler))
     (body))
-  (define (watchdog thr)
-    (let loop ((n 180))
-      (let1 rest (sys-sleep n)
-        (unless (zero? rest) (loop rest))))
-    (cond [(< timestamp (- (sys-time) 180))
-           (log-format "watchdog barks.  restarting watcher thread.")
-           (thread-terminate! thr)
-           (watchdog (thread-start! (make-thread body)))]
-          [else (watchdog thr)]))
-  (let1 thr (thread-start! (make-thread body))
-    (thread-start! (make-thread (cut watchdog thr)))))
+
+  (thread-start! (make-thread follower-observer))
+  (body))
 
 (define (main args)
   (let-args (cdr args) ([logfile "l=s"] [else _ (usage)] . restargs)
@@ -198,8 +193,7 @@
        (let* ([config (read-configuration file)]
               [client (chaton-connect (config'chaton-url) "chaton-twitter"
                                       (make-observer config))])
-         (kick-reply-watcher! client config)
-         (while #t (sys-pause)))]
+         (kick-reply-watcher! client config))]
       [_ (usage)])))
 
 (define (usage)
