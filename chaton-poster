@@ -132,6 +132,7 @@
            (cons (logand v m)
                  (logior v (logand (lognot m) #xffffffff))))))]
     [#/^#/ () #f]
+    [#/^\s*$/ () #f]
     [else (log-format "bad ip addr in blacklist: ~s. ignoring." addr-str) #f]))
 
 ;;;===================================================================
