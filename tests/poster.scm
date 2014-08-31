@@ -1,6 +1,7 @@
 (use gauche.test)
 (use www.cgi.test)
 (use file.util)
+(use util.match)
 
 (define *testdatadir* "data.o")
 
@@ -22,10 +23,23 @@
                   ("CHATON_DOCDIR"  . ,*testdatadir*))
    :parameters `((nick . ,nick) (text . ,text))))
 
-(test* "post" #t (begin (post "Nick.name" "text1") #t))
-(test* "post" #t (begin (post "Nick.name" "text2") #t))
-(test* "post" #t (begin (post "Nock.name" "text3") #t))
-(test* "post" #t (begin (post "Nock.name" "<x>oo</x>http://text4/foo?bar#baz<s>yy</s>") #t))
+(define (check nick text)
+  (any (^[entry]
+         (match entry
+           [(nick_ ts text_ remote)
+            (and (equal? nick nick_) (equal? text text_))]
+           [_ (error "Corrupt entry in current.dat:" entry)]))
+       (file->sexp-list (build-path *testdatadir* "current.dat"))))
+
+(define (test-post nick text)
+  (test* (format "post ~a ~a" nick text) #t
+         (begin (post nick text)
+                (boolean (check nick text)))))
+
+(test-post "Nick.name" "text1")
+(test-post "Nick.name" "text2")
+(test-post "Nock.name" "text3")
+(test-post "Nock.name" "<x>oo</x>http://text4/foo?bar#baz<s>yy</s>")
 
 (test-end)
 
