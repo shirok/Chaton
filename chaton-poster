@@ -103,7 +103,6 @@
 ;; IP blocking - if datadir contains blacklist.txt, read it.
 ;; The file lists one IP or IP range per line; IP range being xx.xx.xx.xx/bb
 ;; # to the end of line is a comment.
-;; Returns list of integer IP ranges (<start> . <end>), both inclusive
 (define (ip-blacklisted? remote-addr)
   (and-let* ([ (string? remote-addr) ]
              [v (parse-ipaddr remote-addr)]
@@ -111,6 +110,7 @@
              [blacklist (load-ip-blacklist)])
     (any (^p (<= (car p) addr (cdr p))) blacklist)))
 
+;; Returns list of integer IP ranges (<start> . <end>), both inclusive
 (define (load-ip-blacklist)
   (if-let1 lines (file->string-list (build-path +datadir+ "blacklist.txt")
                                     :if-does-not-exist #f)
