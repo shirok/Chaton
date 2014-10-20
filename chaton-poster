@@ -61,10 +61,18 @@
   (newline out))
 
 (define (make-entry nick text)
-  (let1 s (string-incomplete->complete text #\?)
+  ;; Exclude control characters invalid for XML1.0
+  ;; http://www.w3.org/TR/2008/REC-xml-20081126/#charsets
+  (define (filter-string s)
+    ($ string-delete #[\u0000-\u0008\u000b\u000c\u000e-\u001f]
+       $ string-incomplete->complete s #\?))
+  (let ([text (filter-string text)]
+        [nick (filter-string nick)])
     (receive (sec usec) (sys-gettimeofday)
       `(,nick (,sec ,usec)
-              ,(if (> (string-length s) *limit*) (string-take s *limit*) s)
+              ,(if (> (string-length text) *limit*)
+                 (string-take text *limit*)
+                 text)
               ,(cgi-get-metavariable "REMOTE_ADDR")))))
 
 (define (increment-sequence)
