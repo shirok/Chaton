@@ -30,6 +30,10 @@
   ForceType application/json
 </Files>
 
+<Files "var/index.rdf">
+  ForceType application/rss+xml
+</Files>
+
 <Files *.html>
   ForceType 'text/html; charset=utf-8'
 </Files>
