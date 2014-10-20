@@ -48,7 +48,7 @@
     (html:title "Chaton "@@room-name/escd@@)
     (html:link :href "@@httpd-url@@@@url-path@@chaton.css" :rel "Stylesheet"
                :type "text/css")
-    (html:link :href "@@httpd-url@@@@url-path@@var/index.rdf" :rel "Alternate" :type "application/rss+xml")
+    (html:link :href "@@httpd-url@@@@url-path@@var/index.rdf" :rel "alternate" :type "application/rss+xml")
     (html:script :src "@@prototype-url@@" :type "text/javascript")
     (html:script :src "@@httpd-url@@@@url-path@@@@chaton-js@@"
                  :type "text/javascript"))
