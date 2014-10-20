@@ -1,3 +1,9 @@
+2014-10-19  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.scm (chaton-render-rss-1): A quick fix not to include
+	  control characters in rss feed outside of CDATA.  Proper fix is
+	  still required to filter such characters at the posting.
+
 2014-03-09  Shiro Kawai  <shiro@acm.org>
 
 	* client/examples/chaton-twitter (feed-to-twitter): Fixed the post

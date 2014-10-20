@@ -138,9 +138,11 @@
     (let* ([text-with-nick #`",|nick|: ,|text|"]
            [anchor-string (make-anchor-string sec usec)]
            [permalink (make-permalink sec anchor-string)]
-           [title (html-escape-string (if-let1 m (#/^[^\n]*/ text-with-nick)
-                                        (m 0)
-                                        text-with-nick))]
+           [title ($ string-delete (^c (memq (char-general-category c)
+                                             '(Cc Cf Cn Co Cs)))
+                     $ html-escape-string (if-let1 m (#/^[^\n]*/ text-with-nick)
+                                            (m 0)
+                                            text-with-nick))]
            [desc (html-format-entry text-with-nick anchor-string)])
       ;; NB: DESC can never have "]]>" in it, since the external text has
       ;; gone through safe-text and all >'s in it are replaced by &gt's.
