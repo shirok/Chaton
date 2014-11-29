@@ -3,8 +3,8 @@ It is a collection of CGI scripts, daemon programs and other scripts.
 
 Prerequisites:
 
-- Make sure you can run a daemon process on your server.
-  It might be difficult if you're using shared hosting
+- Make sure you can run daemon processes on your server.
+  It might be difficult if you're using a shared hosting
   service.
 
 - It is also desirable that you can make your own crontab.
@@ -37,9 +37,9 @@ Files:
           posting.  The actual installed script is named
           'chaton-poster-$ROOM'.
 
-    chaton-browser  This is a CGI script that handles browsing
-          message archives.  When installed, this script becomes
-          'a', for the sake of shorter permalinks.
+    chaton-browser  This is a CGI script to browse message archives.
+          When installed, this script is renamed to 'a', for the sake
+          of shorter permalinks.
 
     chaton-archiver  This is a script file that archives message
           logs.  This script must be run daily.
@@ -53,7 +53,7 @@ Files:
           becomes 'apilogin'.
 
 
- The following files are to consist the client-side contents:
+ The following files consist the client-side contents:
 
     chaton.js   The javascript that implements client-side operations.
           The same file is read from both the outer content and
@@ -83,7 +83,7 @@ Directory structure:
                  Each chatroom must have distinct $DATADIR.
 
     $DATADIR/data   Subdirectory where message data goes into.  CGI
-                 scripts needs to write into this directory.
+                 scripts need to write into this directory.
 
     $DATADIR/data/current.dat   Current message data.  Typically it
                  contains around one-day worth of postings.   The
@@ -120,11 +120,21 @@ Directory structure:
                  the web browsers, archived messages are accessed
                  as 'http://yourdomain.example.com/.../$ROOM/a/YYYY/MM/DD'
 
+    $HTDOCSDIR/var           A directory holds some transient data.  This
+                 directory must be writable both by CGI scripts and
+                 the user running viewer and archiver.
+
     $HTDOCSDIR/var/status.{js,scm}  The comet server periodically dumps
                  the room status into these files.  You can poll these files
                  to find out the current status of the room.
                  See http://chaton.practical-scheme.net/doc?Retrieving%20Room%20Status
                  for the details.
+
+    $HTDOCSDIR/var/index.rdf
+    $HTDOCSDIR/var/seq       These are written by chaton-poster-$ROOM script.
+                 The index.rdf serves RSS.  The seq file is a text file contains
+                 a number; they can be read by the clients to show # of unread
+                 messages.
 
 Build a chat room:
 
@@ -154,6 +164,13 @@ Build a chat room:
   runs build-site for every room you have.
 
     make install
+
+  If you run cgi scripts in a different user privildge than yourself
+  (that is, you're not using suexec), you need to adjust permissons
+  of some directories.  See the above directory structure descriptions.
+  The recommended way is to use common group permissoins and make those
+  directories group writable.
+  It'd be nicer to do so automagically by build-site script, but not yet.
 
 
 Run a chat room:
