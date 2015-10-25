@@ -103,13 +103,16 @@
 ;; Integration
 ;;
 
+(define *short-url-length* 23)
+
 (define (feed-to-twitter config client nick time text)
-  ;; Twitter shortens link to 22 chars, no matter how long the original
-  ;; link is.  TODO: We should check the urls within content as well.
+  ;; Twitter shortens link to *short-url-length* chars, no matter how
+  ;; long the original link is.
+  ;; TODO: We should check the urls within content as well.
   (let* ([content (format "~a: ~a" nick text)]
          [link (chaton-permalink client time)]
-         [post (if (> (+ (string-length content) 1 22) 140)
-                 (string-append (string-take content (- 140 22 2))
+         [post (if (> (+ (string-length content) 1 *short-url-length*) 140)
+                 (string-append (string-take content (- 140 *short-url-length* 2))
                                 (string #\u2026 #\space)
                                 link)
                  (string-append content " " link))])
