@@ -27,7 +27,10 @@ function post() {
 function textKey(e) {
   if ($('post-text').disabled) return;
   var key = (e.which || e.keyCode);
-  if (key == Event.KEY_RETURN) { post(); }
+  if (key == Event.KEY_RETURN) {
+    if (e.shiftKey) { $('post-text').insert('<br/>'); }
+    else            { post(); }
+  }
 }
 
 function disablePost() {

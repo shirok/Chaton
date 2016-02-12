@@ -1,3 +1,8 @@
+2016-02-12  Shiro Kawai  <shiro@acm.org>
+
+	* chaton.js: Shift+ENTER in textarea inserts newline instead
+	  of posting.
+
 2015-10-24  Shiro Kawai  <shiro@acm.org>
 
 	* client/examples/chaton-twitter (feed-to-twitter): Now they count
