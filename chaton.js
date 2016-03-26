@@ -29,7 +29,7 @@ function textKey(e) {
   if ($('post-text').disabled) return;
   var key = (e.which || e.keyCode);
   if (key == Event.KEY_RETURN) {
-    if (e.shiftKey || $('post-by-return').checked == TRUE) {
+    if (e.shiftKey || $('post-by-return').checked == false) {
       $('post-text').insert('<br/>');
     } else {
       post();
