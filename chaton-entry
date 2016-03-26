@@ -89,7 +89,13 @@
          (html:textarea :name "text" :id "post-text" :rows "3" :cols "40"))
         (html:td :valign "bottom"
          (html:input :type "submit" :name "submit" :id "post-submit"
-                     :value "chat"))))))
+                     :value "chat")))
+       (html:tr
+        (html:td)
+        (html:td
+         (html:input :type "checkbox" :name "post-by-return"
+                     :id "post-by-return")
+         (html:label :for "post-by-return" "'Return' key to post (you can insert CR by shift+RET)"))))))
     )))
 
 ;;;===================================================================

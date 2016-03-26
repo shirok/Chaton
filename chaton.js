@@ -10,6 +10,7 @@
 
 function post() {
   setNickCookie($F('post-remember'));
+  setReturnPostCookie($F('post-by-return'));
   if ($F('post-nick') == '' || $F('post-text') == '') return;
   disablePost();
   new Ajax.Request("@@httpd-url@@@@url-path@@@@cgi-script@@",
@@ -28,8 +29,11 @@ function textKey(e) {
   if ($('post-text').disabled) return;
   var key = (e.which || e.keyCode);
   if (key == Event.KEY_RETURN) {
-    if (e.shiftKey) { $('post-text').insert('<br/>'); }
-    else            { post(); }
+    if (e.shiftKey || $('post-by-return').checked == TRUE) {
+      $('post-text').insert('<br/>');
+    } else {
+      post();
+    }
   }
 }
 
@@ -50,7 +54,7 @@ function enablePost(clearp) {
   $('post-text').focus();
 }
 
-function setNickname() {
+function initByCookie() {
     var cookies = document.cookie.split(';');
     var len = cookies.length;
     for (var i = 0; i < len; i++) {
@@ -59,7 +63,11 @@ function setNickname() {
             var nick = sc.substring('chaton-nickname='.length, sc.length);
             $('post-nick').value = unescape(nick);
             $('post-remember').checked = true;
-            break;
+        }
+        if (sc == 'chaton-no-post-by-return=1') {
+            $('post-by-return').checked = false;
+        } else {
+            $('post-by-return').checked = true;
         }
     }
 }
@@ -71,6 +79,18 @@ function setNickCookie(set) {
             + ';path=@@cookie-path@@';
     } else {
         document.cookie = 'chaton-nickname='
+            + ';expires=Thu, 01-Jan-1970 00:00:01 GMT'
+            + ';path=@@cookie-path@@';
+    }
+}
+
+function setReturnPostCookie(set) {
+    if (set) {
+        document.cookie = 'chaton-no-post-by-return='
+            + ';expires=Tue, 19 Jan 2038 00:00:00 GMT'
+            + ';path=@@cookie-path@@';
+    } else {
+        document.cookie = 'chaton-no-post-by-return=1'
             + ';expires=Thu, 01-Jan-1970 00:00:01 GMT'
             + ';path=@@cookie-path@@';
     }
@@ -143,7 +163,7 @@ function initMainBody() {
   $('post-text').observe('keypress', textKey);
   $('the-body').onmouseover = function () { messageMonitorStop(); }
   $('the-body').onmouseout  = function () { messageMonitorRun(); }
-  setNickname();
+  initByCookie();
 }
 
 //=================================================================
