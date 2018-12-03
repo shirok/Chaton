@@ -177,14 +177,8 @@
         (set! followers (tw:followers/ids cred :screen-name me))))
     (sys-sleep 900)
     (follower-observer))
-  (define (body)
-    (guard (e [else (log-format "twitter stream error: ~a" (ref e'message))])
-      (log-format "twitter stream start")
-      (tw:user-stream cred stream-handler))
-    (body))
 
-  (thread-start! (make-thread follower-observer))
-  (body))
+  (follower-observer))
 
 (define (main args)
   (let-args (cdr args) ([logfile "l=s"] [else _ (usage)] . restargs)

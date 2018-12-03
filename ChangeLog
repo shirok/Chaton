@@ -1,6 +1,12 @@
+2018-12-03  Shiro Kawai  <shiro@acm.org>
+
+	* client/examples/chaton-twitter (kick-reply-watcher!): Remove
+	  using twitter user stream.  For now, twitter feed is only one
+	  direction (chaton -> twitter).
+
 2016-03-26  Shiro Kawai  <shiro@acm.org>
 
-	* chaton-entry, chaton.js: Add "'Return' key to post" checkbox. 
+	* chaton-entry, chaton.js: Add "'Return' key to post" checkbox.
 
 2016-02-12  Shiro Kawai  <shiro@acm.org>
 
