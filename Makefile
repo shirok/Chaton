@@ -17,4 +17,11 @@ check:
 
 clean:
 	cd tests; $(MAKE) clean
+	if [ -f client/Makefile ]; then cd client; $(MAKE) clean; fi
 	rm -rf test.record *.log *~
+
+realclean: clean
+	if [ -f client/Makefile ]; then cd client; $(MAKE) realclean; fi
+
+maintainer-clean: clean
+	if [ -f client/Makefile ]; then cd client; $(MAKE) maintainer-clean; fi
