@@ -188,8 +188,7 @@
     (match restargs
       [(file)
        (let* ([config (read-configuration file)]
-              [client (chaton-connect (config'chaton-url) "chaton-twitter"
-                                      (make-observer config))])
+              [client (connect/retry config)])
          (kick-reply-watcher! client config))]
       [_ (usage)])))
 
@@ -198,6 +197,18 @@
   (exit 0))
 
 (define (common-log-open dst) (log-open dst) (chaton-log-open dst))
+
+(define (connect/retry config)
+  (let loop ((retry 0))
+    (if (= retry 5)
+      (begin
+        (log-format "Giving up: Couldn't connect to chaton at ~s"
+                    (config'chaton-url))
+        (exit 1))
+      (or (guard (e #f)
+            (chaton-connect (config'chaton-url) "chaton-twitter"
+                            (make-observer config)))
+          (loop (+ retry 1))))))
 
 ;;
 ;; Utility
