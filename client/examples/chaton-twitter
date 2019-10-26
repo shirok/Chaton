@@ -205,7 +205,7 @@
         (log-format "Giving up: Couldn't connect to chaton at ~s"
                     (config'chaton-url))
         (exit 1))
-      (or (guard (e #f)
+      (or (guard (e [else #f])
             (chaton-connect (config'chaton-url) "chaton-twitter"
                             (make-observer config)))
           (begin
