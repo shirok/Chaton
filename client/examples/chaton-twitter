@@ -208,7 +208,9 @@
       (or (guard (e #f)
             (chaton-connect (config'chaton-url) "chaton-twitter"
                             (make-observer config)))
-          (loop (+ retry 1))))))
+          (begin
+            (sys-sleep (expt 2 retry))
+            (loop (+ retry 1)))))))
 
 ;;
 ;; Utility
