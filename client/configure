@@ -1,0 +1,9 @@
+#!/usr/bin/env gosh
+;; Configuring chaton.client
+;; Run ./configure (or gosh ./configure) to generate Makefiles.
+
+(use gauche.configure)
+
+(cf-init-gauche-extension)
+
+(cf-output-default)
