@@ -16,10 +16,12 @@
   (use gauche.logger)
   (use gauche.fcntl)
   (use gauche.process)
+  (use gauche.connection)
   (use text.html-lite)
   (use text.tree)
   (use rfc.822)
   (use rfc.uri)
+  (use rfc.tls)
   (use file.util)
   (use util.match)
   (use www.cgi)
@@ -49,12 +51,12 @@
 
 (define (run-viewer-server port source)
   (initialize port source)
-  (let1 server-sock (make-server-socket 'inet port :reuse-addr? #t)
+  (let1 server-sock (make-server-connection port #f)
     (spawn-monitor source)
     (spawn-status)
     (spawn-client-tracker)
     (guard (e [else (log-format "main loop error: ~a" (~ e'message)) (cleanup)])
-      (while #t (spawn-child (socket-accept server-sock))))))
+      (while #t (spawn-child (accept-connection server-sock))))))
 
 ;;;
 ;;;   Monitor thread
@@ -146,11 +148,11 @@
                 [(eq? e 'processed) #f]
                 [else (log-child csock "error ~s" (~ e'message))])
         (match-let1 (pos cid fmt hmv)
-            (get-header csock (socket-input-port csock))
+            (get-header csock (connection-input-port csock))
           (if pos
             (emit-tail csock pos cid fmt hmv)
             (emit-skeleton csock cid hmv))))
-    (socket-close csock)))
+    (connection-close csock)))
 
 ;; returns the integer parameter given to the query
 (define (get-header csock in)
@@ -185,7 +187,7 @@
   (let ([s (tree->string (make-skeleton (cond [(and cid (valid-cid? cid)) cid]
                                               [+loose-login+ (new-client-cid)]
                                               [else (emit-bad-cid csock hmv)])))]
-        [out (socket-output-port csock)])
+        [out (connection-output-port csock)])
     (write-tree `("HTTP/1.",hmv" 200 OK\r\n\
                    Content-type: text/html; charset=utf-8\r\n\
                    Cache-control: no-cache\r\n\
@@ -258,7 +260,7 @@
 (define (send-reply csock cid pos content sexp? hmv)
   (client-replied csock cid)
   (let ([packet (tree->string (make-packet cid pos content sexp?))]
-        [out (socket-output-port csock)])
+        [out (connection-output-port csock)])
     (write-tree `("HTTP/1.",hmv" 200 OK\r\n\
       Content-type: application/",(if sexp? "x-sexpr" "json")"; charset=utf-8\r\n\
       Cache-control: no-cache\r\n\
@@ -303,12 +305,13 @@
   (write-tree `("HTTP/1.",hmv" ",status"\r\n\
                 Content-type: ",ctype"; charset=utf-8\r\n\
                 Content-length: ",(string-size content)"\r\n\r\n",content)
-              (socket-output-port csock))
+              (connection-output-port csock))
   (raise 'processed))
 
 (define (log-child csock fmt . args)
   (log-format "(~a) ~a"
-              (if-let1 addr (socket-address csock) (sockaddr-name addr) #f)
+              (and-let1 addr (connection-peer-address csock)
+                (sockaddr-name addr))
               (apply format fmt args)))
 
 ;;;
@@ -444,6 +447,34 @@
   (guard (e [(<system-error> e) #f]) (string->number (sys-readlink *pidfile*))))
 
 (define (write-pid) (sys-symlink (x->string (sys-getpid)) *pidfile*))
+
+;;;
+;;;  Connection abstraction
+;;;
+
+;; TRANSIENT: Older Gauche doesn't have these.
+(define tls-bind (global-variable-ref 'rfc.tls 'tls-bind #f))
+(define tls-load-certificate (global-variable-ref 'rfc.tls 'tls-load-certificate #f))
+(define tls-load-private-key (global-variable-ref 'rfc.tls 'tls-load-private-key #f))
+
+;; tls-settings is a key-value list, same to Gauche-makiki's.
+(define (make-server-connection port tls-settings)
+  (if tls-settings
+    (if (and tls-bind tls-load-certificate tls-load-private-key)
+      (rlet1 tls (make-tls)
+        (dolist [cert (get-keyword :tls-certificates tls-settings)]
+          (tls-load-certificate tls cert))
+        ($ tls-load-private-key tls
+           (get-keyword :tls-private-key tls-settings)
+           (get-keyword :tls-private-key-password tls-settings #f))
+        (tls-bind tls #f port))
+      (error "TLS server isn't supported in this version of Gauche."))
+    (make-server-socket 'inet port :reuse-addr? #t)))
+
+(define (accept-connection conn)
+  (if (is-a? conn <socket>)
+    (socket-accept conn)
+    (tls-accept conn)))
 
 ;;;
 ;;;  Initialize, shutdown, and process management
