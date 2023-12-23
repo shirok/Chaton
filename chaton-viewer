@@ -37,6 +37,10 @@
 (define-constant +credential+ "@@server-data-dir@@auth")
 (define-constant +loose-login+ (read-from-string "@@loose-login@@"))
 
+(define-constant +tls-settings+
+  (let1 settings (read-from-string "@@tls-settings@@")
+    (and (list? settings) settings)))
+
 ;; Global data shared between threads.  Accessor should lock *mutex* (ugh!).
 (define *mutex* (make-mutex))
 (define *cv* (make-condition-variable))
@@ -51,7 +55,7 @@
 
 (define (run-viewer-server port source)
   (initialize port source)
-  (let1 server-sock (make-server-connection port #f)
+  (let1 server-sock (make-server-connection port +tls-settings+)
     (spawn-monitor source)
     (spawn-status)
     (spawn-client-tracker)

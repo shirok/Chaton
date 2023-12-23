@@ -21,6 +21,7 @@
          [docdir  (assoc-ref config 'server-htdocs-dir)]
          [datadir (assoc-ref config 'server-data-dir)]
          [bindir  (assoc-ref config 'server-bin-dir)]
+         [tlssettings (assoc-ref config 'tls-settings "")]
          [cgi-script #`"chaton-poster-,|safe-room-name|"]
          [comet-script #`"chaton-viewer-,|safe-room-name|"]
          [archiver-script #`"chaton-archiver-,|safe-room-name|"]
@@ -30,6 +31,7 @@
                     (room-name/escd . ,room-name/escd)
                     (room-description/escd . ,room-description/escd)
                     (htaccess-auth . ,(htaccess-auth config))
+                    (tls-settings . ,tlssettings)
                     ,@config)])
     (ensure-files-and-directories bindir docdir datadir)
     (receive (nconf chaton-js-update?)
@@ -58,7 +60,7 @@
 
 (define (sed inf outf config :optional (verbose? #t))
   (define executable? #f)
-  
+
   (define (xlate-1 line)
     (apply regexp-replace-all* line
            (concatenate (map (lambda (cv) `(,#`"@@,(car cv)@@"
@@ -137,7 +139,7 @@
                         (version . ,timestamp) ,@config)
                       #t)))
         (sys-unlink "chaton.js.tmp")))))
-  
+
 (define (find-latest-chaton-js dir)
   (let1 fs (directory-list dir :add-path? #t :filter #/^chaton\.\w+\.js$/)
     (if (null? fs) #f (car (reverse fs)))))
