@@ -21,16 +21,16 @@
           chaton-alist->stree
 
           +room-url+ +archive-url+
-          
+
           +datadir+ +current-file+ +sequence-file+
           +last-post-file+ +num-chatters-file+
-          
+
           +logdir+
 
           +docdir+ +status.js+ +status.scm+ +index.rdf+
 
           +show-stack-trace+
-          
+
           with-output-to-file))
 (select-module chaton)
 
@@ -103,7 +103,7 @@
 ;;;  rendering
 ;;;
 
-(define (ensure-state last-state) ; bridge to support backward compat. 
+(define (ensure-state last-state) ; bridge to support backward compat.
   (match last-state
     [(c i t) last-state]
     [_       '(#f #f #f)]))
@@ -173,7 +173,7 @@
     (html:pre :class "entry-multi" :id anchor-string
               (safe-text entry-text))
     (html:div :class "entry-single" :id anchor-string
-              (html:span (safe-text entry-text)))))  
+              (html:span (safe-text entry-text)))))
 
 (define *url-rx* #/https?:\/\/(\/\/[^\/?#\s]*)?([^?#\s\"]*(\?[^#\s\"]*)?(#[^\s\"]*)?)/)
 

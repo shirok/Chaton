@@ -20,7 +20,7 @@
 ;;   an assoc list of the following items:
 ;;
 ;;     chaton-url              : chaton's room url to communicate (string)
-;;     twitter-username        : twitter username to feed 
+;;     twitter-username        : twitter username to feed
 ;;     twitter-consumer-key    : consumer key (string)
 ;;     twitter-consumer-secret : consumer secret (string)
 ;;     twitter-access-token    : access token (string)

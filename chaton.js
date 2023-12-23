@@ -16,8 +16,8 @@ function post() {
   new Ajax.Request("@@httpd-url@@@@url-path@@@@cgi-script@@",
     {
       parameters : {
-        nick: $F('post-nick'), 
-	text: $F('post-text')
+        nick: $F('post-nick'),
+        text: $F('post-text')
       },
       onSuccess : function (t) { enablePost(true); },
       onFailure : function (t) { enablePost(false); },
@@ -95,7 +95,7 @@ function setReturnPostCookie(set) {
             + ';path=@@cookie-path@@';
     }
 }
-   
+
 // Sequence count monitor -----------------------------
 
 var messageMonitorRunning = false;
@@ -330,5 +330,3 @@ function tameWatchDog() {
 function initViewFrame(cid) {
     setTimeout(function () { fetchContent(cid); }, 1);
 }
-
-

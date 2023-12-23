@@ -179,4 +179,3 @@ Run a chat room:
 
   You also have to set up chaton-archiver-$ROOM to be executed
   once a day, probably using cron.
-

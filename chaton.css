@@ -1,5 +1,5 @@
 body { margin: 0; padding: 0; }
-#room-title { margin: 10pt 10pt -20pt 10pt; 
+#room-title { margin: 10pt 10pt -20pt 10pt;
               font-size: 150%; font-family: Sans, Ariel, Helvetica; }
 
 #right-pane { display: inline; float: right; width: 200px; }
@@ -19,7 +19,7 @@ body { margin: 0; padding: 0; }
 
 .timestamp { float: right; color: #bbbbbb; font-size: 80%; }
 .chatter   { color: #907040; font-size: 95%; margin-top: 1em; }
-.permalink-anchor { float: right; color: #bbeeee; 
+.permalink-anchor { float: right; color: #bbeeee;
                     text-decoration: none; font-size: 80%; }
 .entry-header { margin-top: 1em; }
 .entry-single { margin-left: 1.5em; }

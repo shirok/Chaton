@@ -26,7 +26,7 @@
           chaton-icon-url chaton-cid chaton-pos chaton-observer-error
           chaton-permalink
           chaton-message-dequeue!
-          
+
           chaton-talk chaton-bye
 
           chaton-log-open <chaton-error>))

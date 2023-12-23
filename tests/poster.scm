@@ -16,7 +16,7 @@
   (remove-directory* *testdatadir*))
 
 (define (post nick text)
-  (run-cgi-script->string 
+  (run-cgi-script->string
    "../chaton-poster"
    :environment `(("GAUCHE_LOAD_PATH" . "..")
                   ("CHATON_DATADIR" . ,*testdatadir*)
@@ -71,5 +71,3 @@
 
 
 (test-end)
-
-

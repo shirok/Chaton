@@ -1,4 +1,4 @@
-;;
+ h;;
 ;; Package chaton-client
 ;;
 
@@ -13,5 +13,3 @@
   :homepage "http://chaton.practical-scheme.net/"
   :repository "https://github.com/shork/Chaton"
   )
-
-

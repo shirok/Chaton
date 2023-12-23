@@ -11,15 +11,15 @@
   (cgi-main
    (lambda (params)
      (let ((username (cgi-get-metavariable "REMOTE_USER"))
-	   (pwd1     (cgi-get-parameter "pwd1" params))
-	   (pwd2     (cgi-get-parameter "pwd2" params)))
+           (pwd1     (cgi-get-parameter "pwd1" params))
+           (pwd2     (cgi-get-parameter "pwd2" params)))
        (cond
-	((not username) (not-authorized))
-	((or (not pwd1) (not pwd2)) (pass-page ""))
-	((not (string=? pwd1 pwd2)) (pass-page "Passwords don't match."))
-	((not (#/^[\w~!@#$%^&*()\[\]{}<>,.\/?+=|:\"\;-]*$/ pwd1))
+        ((not username) (not-authorized))
+        ((or (not pwd1) (not pwd2)) (pass-page ""))
+        ((not (string=? pwd1 pwd2)) (pass-page "Passwords don't match."))
+        ((not (#/^[\w~!@#$%^&*()\[\]{}<>,.\/?+=|:\"\;-]*$/ pwd1))
          (pass-page "Invalid character in the password"))
-	(else (change-pass username pwd1)))))
+        (else (change-pass username pwd1)))))
    ))
 
 (define (not-authorized)
@@ -49,23 +49,23 @@
       :method "POST" :action "passwd"
       (html:table
        (html:tr (html:th :align "right" "Password: ")
-		(html:td :align "left"
-			 (html:input :name "pwd1" :type "password" :width 30)))
+                (html:td :align "left"
+                         (html:input :name "pwd1" :type "password" :width 30)))
        (html:tr (html:th :align "right" "Retype Password: ")
-		(html:td :align "left"
-			 (html:input :name "pwd2" :type "password" :width 30)))
+                (html:td :align "left"
+                         (html:input :name "pwd2" :type "password" :width 30)))
        (html:tr (html:td)
-		(html:td (html:input :name "submit" :type "submit"
-				     :value "Change")))))
+                (html:td (html:input :name "submit" :type "submit"
+                                     :value "Change")))))
      (html:p "After submitting, you'll be asked to enter the password again.")
      ))))
 
 (define (change-pass user passwd)
   (run-process "/usr/bin/htpasswd" "-bm"
-	       "@@htpasswd-path@@"
-	       user passwd
-	       :input "/dev/null" :output "/dev/null"
-	       :wait #t)
+               "@@htpasswd-path@@"
+               user passwd
+               :input "/dev/null" :output "/dev/null"
+               :wait #t)
   (list
    (cgi-header :status "302" :location "@@httpd-url@@@@url-path@@")
    ))

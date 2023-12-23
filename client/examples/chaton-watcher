@@ -83,7 +83,7 @@
                   (mutex-unlock! *mutex*))])))
 
 (define (fmt-time secs) (sys-strftime "%H:%M" (sys-localtime secs)))
-                
+
 ;; Local variables:
 ;; mode: scheme
 ;; end:
