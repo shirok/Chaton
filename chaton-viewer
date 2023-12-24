@@ -37,6 +37,9 @@
 (define-constant +credential+ "@@server-data-dir@@auth")
 (define-constant +loose-login+ (read-from-string "@@loose-login@@"))
 
+
+;; NB: For historical reasons, build-site puts string literals in the
+;; conf file as symbols.  We'll convert it back in make-server-connection.
 (define-constant +tls-settings+
   (let1 settings (read-from-string "@@tls-settings@@")
     (and (list? settings) settings)))
@@ -466,11 +469,13 @@
   (if tls-settings
     (if (and tls-bind tls-load-certificate tls-load-private-key)
       (rlet1 tls (make-tls)
+        ;; See comment in +tls-settings+ above
+        (define (S x) (if (symbol? x) (symbol->string x) x))
         (dolist [cert (get-keyword :tls-certificates tls-settings)]
-          (tls-load-certificate tls cert))
+          (tls-load-certificate tls (S cert)))
         ($ tls-load-private-key tls
-           (get-keyword :tls-private-key tls-settings)
-           (get-keyword :tls-private-key-password tls-settings #f))
+           (S (get-keyword :tls-private-key tls-settings))
+           (S ((get-keyword :tls-private-key-password tls-settings #f))))
         (tls-bind tls #f port))
       (error "TLS server isn't supported in this version of Gauche."))
     (make-server-socket 'inet port :reuse-addr? #t)))
