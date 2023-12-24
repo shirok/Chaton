@@ -475,7 +475,7 @@
           (tls-load-certificate tls (S cert)))
         ($ tls-load-private-key tls
            (S (get-keyword :tls-private-key tls-settings))
-           (S ((get-keyword :tls-private-key-password tls-settings #f))))
+           (S (get-keyword :tls-private-key-password tls-settings #f)))
         (tls-bind tls #f port))
       (error "TLS server isn't supported in this version of Gauche."))
     (make-server-socket 'inet port :reuse-addr? #t)))
