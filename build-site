@@ -2,8 +2,8 @@
 
 ;; Build site according to configuration file
 
-(use srfi-1)
-(use srfi-13)
+(use scheme.list)
+(use srfi.13)
 (use util.match)
 (use util.list)
 (use file.util)
@@ -32,7 +32,7 @@
                     (room-description/escd . ,room-description/escd)
                     (htaccess-auth . ,(htaccess-auth config))
                     (tls-settings . ,tlssettings)
-                    ,@config)])
+                    ,@(secure-config-urls config))])
     (ensure-files-and-directories bindir docdir datadir)
     (receive (nconf chaton-js-update?)
         (check-if-chaton-js-need-to-change docdir xconfig)
@@ -81,6 +81,16 @@
   (when verbose? (print "installing " outf))
   (file-filter xlate :input inf :output outf :temporary-file #`",|outf|.t")
   (sys-chmod outf (if executable? #o555 #o444)))
+
+;; If tls-settings is given, we rewrite 'http:' in the setting parameter
+;; to 'https', so that you don't need to change
+(define (secure-config-urls config)
+  (if (assoc-ref config 'tls-settings)
+    (map (^p (if (string? (cdr p))
+               (cons (car p) (regexp-replace #/^http:/ (cdr p) "https:"))
+               p))
+         config)
+    config))
 
 ;; This returns ((<var> . <val>) ...) of config file, in the REVERSE order
 ;; of apperance.  The order is important to allow overriding values by
