@@ -66,7 +66,7 @@
       (while #t
         (and-let1 clnt
             (guard (e [(#/TLS handshake/ (~ e'message))
-                       (log-format "TLS accept error: ~a" (~ e'mssage))])
+                       (log-format "TLS accept error: ~a" (~ e'message))])
               (accept-connection server-sock))
           (spawn-child clnt))))))
 
