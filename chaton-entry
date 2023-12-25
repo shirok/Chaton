@@ -25,14 +25,15 @@
 (define (get-cid)
   (and-let* ([ (file-exists? +credential+) ]
              [cred (file->string +credential+)])
-    (receive (status hdrs body) (http-get +viewer+ #"/getcid?cred=~cred")
-      (and (equal? status "200")
-           (guard (e [(<read-error> e) #f])
-             (let1 p (read-from-string body)
-               (and-let* ([ (list? p) ]
-                          [ (every pair? p) ]
-                          [x (assq 'cid p)])
-                 (cdr x))))))))
+    (rxmatch-let (#/\/\/([^\/]+)\// +viewer+) (_ host)
+      (receive (status hdrs body) (http-get host #"/getcid?cred=~cred")
+        (and (equal? status "200")
+             (guard (e [(<read-error> e) #f])
+               (let1 p (read-from-string body)
+                 (and-let* ([ (list? p) ]
+                            [ (every pair? p) ]
+                            [x (assq 'cid p)])
+                   (cdr x)))))))))
 
 (define (emit-content cid)
   (if cid
