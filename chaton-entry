@@ -14,8 +14,8 @@
   (export entry-main))
 (select-module chaton.entry)
 
-(define-constant +chaton-url+ "http://chaton.practical-scheme.net/")
-(define-constant +viewer+  "@@httpd-url@@:@@comet-port@@/")
+(define-constant +chaton-url+ "https://chaton.practical-scheme.net/")
+(define-constant +viewer+  "@@comet-url@@:@@comet-port@@/")
 (define-constant +credential+ "@@server-data-dir@@auth")
 
 (define (entry-main args)
@@ -25,15 +25,14 @@
 (define (get-cid)
   (and-let* ([ (file-exists? +credential+) ]
              [cred (file->string +credential+)])
-    (rxmatch-let (#/\/\/([^\/]+)\// +viewer+) (_ host)
-      (receive (status hdrs body) (http-get host #`"/getcid?cred=,cred")
-        (and (equal? status "200")
-             (guard (e [(<read-error> e) #f])
-               (let1 p (read-from-string body)
-                 (and-let* ([ (list? p) ]
-                            [ (every pair? p) ]
-                            [x (assq 'cid p)])
-                   (cdr x)))))))))
+    (receive (status hdrs body) (http-get +viewer+ #"/getcid?cred=~cred")
+      (and (equal? status "200")
+           (guard (e [(<read-error> e) #f])
+             (let1 p (read-from-string body)
+               (and-let* ([ (list? p) ]
+                          [ (every pair? p) ]
+                          [x (assq 'cid p)])
+                 (cdr x))))))))
 
 (define (emit-content cid)
   (if cid
@@ -65,7 +64,7 @@
      (html:div :class "room-links"
       (html:a :href "@@httpd-url@@@@url-path@@search.html" "Search")
       " | "(html:a :href "@@httpd-url@@@@url-path@@badge.html" "Badge")
-      " | "(html:a :href "http://chaton.practical-scheme.net/doc/Tools" "Tools"))
+      " | "(html:a :href #"~|+chaton-url+|/doc/Tools" "Tools"))
      )
     ;; Left pane --------------
     (html:div :id "left-pane"
@@ -73,8 +72,7 @@
       (html:a :href "a/yesterday" "Read Archive")
       " | "(html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS"))
      (html:div :id "view-frame-container"
-      (html:iframe :src #`"@@httpd-url@@:@@comet-port@@/?c=,cid"
-                   :id "view-frame"))
+      (html:iframe :src #"~|+viewer+|/?c=,cid" :id "view-frame"))
      (html:form :onsubmit "post(); return false;" :id "post-form"
       (html:table
        (html:tr

@@ -36,7 +36,7 @@
 (define-constant +viewer-log+ "@@server-data-dir@@logs/comet.log")
 (define-constant +credential+ "@@server-data-dir@@auth")
 (define-constant +loose-login+ (read-from-string "@@loose-login@@"))
-
+(define-constant +viewer-host+ (uri-ref "@@comet-url@@" 'host))
 
 ;; NB: For historical reasons, build-site puts string literals in the
 ;; conf file as symbols.  We'll convert it back in make-server-connection.
@@ -481,7 +481,7 @@
         ($ tls-load-private-key tls
            (S (get-keyword :tls-private-key tls-settings))
            (S (get-keyword :tls-private-key-password tls-settings #f)))
-        (tls-bind tls #f port))
+        (tls-bind tls +viewer-host+ port))
       (error "TLS server isn't supported in this version of Gauche."))
     (make-server-socket 'inet port :reuse-addr? #t)))
 
