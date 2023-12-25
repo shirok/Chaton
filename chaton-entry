@@ -18,6 +18,9 @@
 (define-constant +viewer+  "@@comet-url@@:@@comet-port@@/")
 (define-constant +credential+ "@@server-data-dir@@auth")
 
+(define-constant +secure-connection?+
+  (list? (read-from-string "@@tls-settings@@")))
+
 (define (entry-main args)
   (set! (port-buffering (current-error-port)) :line)
   (cgi-main (lambda (_) (emit-content (get-cid)))))
@@ -26,7 +29,8 @@
   (and-let* ([ (file-exists? +credential+) ]
              [cred (file->string +credential+)])
     (rxmatch-let (#/\/\/([^\/]+)\// +viewer+) (_ host)
-      (receive (status hdrs body) (http-get host #"/getcid?cred=~cred")
+      (receive (status hdrs body) (http-get host #"/getcid?cred=~cred"
+                                            :secure +secure-connection?+)
         (and (equal? status "200")
              (guard (e [(<read-error> e) #f])
                (let1 p (read-from-string body)
