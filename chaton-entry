@@ -77,7 +77,7 @@
       (html:a :href "a/yesterday" "Read Archive")
       " | "(html:a :href "@@httpd-url@@@@url-path@@var/index.rdf" "RSS"))
      (html:div :id "view-frame-container"
-      (html:iframe :src #"~|+viewer+|/?c=,cid" :id "view-frame"))
+      (html:iframe :src #"~|+viewer+|?c=~cid" :id "view-frame"))
      (html:form :onsubmit "post(); return false;" :id "post-form"
       (html:table
        (html:tr
