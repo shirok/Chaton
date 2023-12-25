@@ -208,7 +208,7 @@ function insertContent(json, cid) {
     tameWatchDog();
     if (json.ver != '@@version@@') {
         // The comet server is updated.  We replace the entire document.
-        document.location.href = '@@httpd-url@@:@@comet-port@@/';
+        document.location.href = '@@comet-url@@:@@comet-port@@/';
         return;
     }
     if (json.cid < 0) {
@@ -316,7 +316,7 @@ function bark(cid) {
     // We don't retry fetch, since there's no reliable way to cancel
     // the ongoing Ajax request.  We replace the whole document instead.
     showStatus('Connection Lost.  Retrying...', 'status-alert');
-    document.location.href = '@@httpd-url@@:@@comet-port@@/';
+    document.location.href = '@@comet-url@@:@@comet-port@@/';
 }
 
 function tameWatchDog() {
