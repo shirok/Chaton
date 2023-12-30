@@ -165,7 +165,7 @@ Build a chat room:
 
     make install
 
-  If you run cgi scripts in a different user privildge than yourself
+  If you run cgi scripts in a different user privilege than yourself
   (that is, you're not using suexec), you need to adjust permissons
   of some directories.  See the above directory structure descriptions.
   The recommended way is to use common group permissoins and make those
