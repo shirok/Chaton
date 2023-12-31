@@ -47,9 +47,7 @@
    (pos       :init-keyword :pos       :getter chaton-pos)
    (observer-thread :init-form #f)
    (observer-error  :init-form #f      :getter chaton-observer-error)
-   (message-queue   :init-form (make-queue))
-   (message-mutex   :init-form (make-mutex))
-   (message-cv      :init-form (make-condition-variable))
+   (message-queue   :init-form (make-mtqueue))
    ))
 
 (define *chaton-log-drain* #f)
@@ -57,7 +55,14 @@
 (define (chaton-log-open path . args)
   (set! *chaton-log-drain* (apply make <log-drain> :path path args)))
 
-;; chaton-connect ROOM-URL APP-NAME :optional OBSERVER => #<chaton-client>
+;; API
+;;  chaton-connect ROOM-URL APP-NAME :optional OBSERVER RETRY
+;;  => #<chaton-client>
+;;
+;;  Establish connection to a chaton room specified by ROOM-URL.
+;;  APP-NAME is a string application name, used for logging.
+;;
+;;  OBSERVER :: (<chaton-client> <packet>) => <? <datum>>
 (define (chaton-connect room-url app-name :optional (observer #f) (retry 0))
   (receive (name post comet icon cid pos)
       (let loop ([n retry] [last-error #f])
@@ -77,24 +82,10 @@
   #t)
 
 (define (chaton-bye client)
-  ;; thread-terminate! is not recommended generally.  this may leave
-  ;; message-mutex "abandoned" state.
   (cond [(~ client'observer-thread) => thread-terminate!]))
 
 (define (chaton-message-dequeue! client :optional (timeout #f) (timeout-val #f))
-  (let1 mutex (~ client'message-mutex)
-    (guard (e [(<abandoned-mutex-exception> e) '()]
-              [else (when (eq? (mutex-state mutex) (current-thread))
-                      (mutex-unlock! mutex))
-                    (raise e)])
-      (let loop ()
-        (mutex-lock! mutex)
-        (if (queue-empty? (~ client'message-queue))
-          (if (mutex-unlock! mutex (~ client'message-cv) timeout)
-            (loop)
-            timeout-val)
-          (begin0 (dequeue! (~ client'message-queue))
-            (mutex-unlock! mutex)))))))
+  (dequeue/wait! (~ client'message-queue) timeout timeout-val))
 
 ;; utility method to return a permalink from the client and
 ;; timestamp (<seconds> <microseconds>)
@@ -133,10 +124,7 @@
                       (when new-pos (set! (~ client'pos) new-pos))
                       (when new-cid (set! (~ client'cid) new-cid)))))))
       (when (and (not (null? r)) (list? r))
-        (with-locking-mutex (~ client'message-mutex)
-          (lambda ()
-            (enqueue! (~ client'message-queue) r)
-            (condition-variable-broadcast! (~ client'message-cv))))))
+        (enqueue! (~ client'message-queue) r)))
     (loop))
   (thread-start! (make-thread loop)))
 
