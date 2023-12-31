@@ -12,14 +12,13 @@
   (use gauche.parameter)
   (use gauche.experimental.ref)
   (use gauche.logger)
-  (use srfi-13)
-  (use srfi-27)
+  (use srfi.13)
+  (use srfi.27)
   (use rfc.http)
   (use rfc.uri)
   (use file.util)
   (use text.tree)
-  (use util.list)
-  (use util.queue)
+  (use data.queue)
   (use util.match)
   (export chaton-connect
           chaton-room-url chaton-room-name chaton-post-url chaton-comet-url
@@ -59,8 +58,13 @@
   (set! *chaton-log-drain* (apply make <log-drain> :path path args)))
 
 ;; chaton-connect ROOM-URL APP-NAME :optional OBSERVER => #<chaton-client>
-(define (chaton-connect room-url app-name :optional (observer #f))
-  (receive (name post comet icon cid pos) (%connect-main room-url app-name)
+(define (chaton-connect room-url app-name :optional (observer #f) (retry 0))
+  (receive (name post comet icon cid pos)
+      (let loop ([n retry] [last-error #f])
+        (if (>= n 0)
+          (guard (e [else (loop (- n 1) e)])
+            (%connect-main room-url app-name))
+          (error "Chaton-connect failed (after ~a retry): ~s" retry last-error)))
     (rlet1 client (make <chaton-client>
                     :room-url room-url :observer observer
                     :post-url post :comet-url comet :icon-url icon
@@ -154,18 +158,19 @@
            (s . 1)))))
 
 (define (GET room-url uri params)
-  (receive (host path) (host&path uri)
+  (receive (host path secure) (host&path uri)
     (receive (status hdrs body)
-        (http-get host #`",path,(make-qstr params)")
+        (http-get host #`",path,(make-qstr params)" :secure secure)
       (unless (equal? status "200")
         (cerrf room-url "GET from ~a failed with ~a" uri status))
       (safe-parse room-url body))))
 
 (define (POST room-url uri params)
-  (receive (host path) (host&path uri)
+  (receive (host path secure) (host&path uri)
     (receive (body boundary) (make-mime params)
       (receive (status hdrs body)
           (http-post host path body
+                     :secure secure
                      :mime-version "1.0"
                      :content-type #`"multipart/form-data; boundary=,boundary")
         (unless (equal? status "200")
@@ -175,7 +180,7 @@
 (define (host&path uri)
   (receive (scheme specific) (uri-scheme&specific uri)
     (receive (host path q f) (uri-decompose-hierarchical specific)
-      (values host path))))
+      (values host path (equal? scheme "https")))))
 
 (define (make-qstr alist)
   (define (do-item k&v)
@@ -206,5 +211,3 @@
 
 (define (cerrf room-url fmt . args)
   (apply errorf <chaton-error> :room-url room-url fmt args))
-
-(provide "chaton/client")
