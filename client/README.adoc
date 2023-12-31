@@ -67,8 +67,8 @@ the event.
   - `ver` - The chaton room's version
   - `cid` - The client ID (integer)
   - `content` - This can be either one of the following:
-    - `(nickname (timestamp-sec timestamp-nsec) text)` - A post
-    - `()` - Indicating this message is mearly notify the current position.
+    -- `(nickname (timestamp-sec timestamp-nsec) text)` - A post
+    -- `()` - Indicating this message is mearly notify the current position.
 . If it is an error event, the second argument is a `<chaton-error>` object.
 It is usually a communication problem such as the server disconnected.
 After returning from _observer_, the client tries to eestablishes the
