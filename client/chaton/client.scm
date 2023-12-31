@@ -73,7 +73,7 @@
 
 (define (chaton-talk client nickname text)
   (POST (~ client'room-url) (~ client'post-url)
-        `((nick . ,nickname) (text . ,text) (cid . ,(~ client'cid))))
+        `((nick ,nickname) (text ,text) (cid ,(~ client'cid))))
   #t)
 
 (define (chaton-bye client)
@@ -141,7 +141,7 @@
   (thread-start! (make-thread loop)))
 
 (define (%connect-main room-url who)
-  (let1 reply (POST room-url (build-path room-url "apilogin") `((who . ,who)))
+  (let1 reply (POST room-url (build-path room-url "apilogin") `((who ,who)))
     (values (assq-ref reply 'room-name)
             (assq-ref reply 'post-uri)
             (assq-ref reply 'comet-uri)
@@ -154,55 +154,23 @@
                   (#/http reply contains no data/ (~ e'message)))
              (raise 'disconnected)])
     (GET (ref client'room-url) (ref client'comet-url)
-         `((t . ,(sys-time)) (c . ,(~ client'cid)) (p . ,(~ client'pos))
-           (s . 1)))))
+         `((t ,(sys-time)) (c ,(~ client'cid)) (p ,(~ client'pos)) (s 1)))))
 
 (define (GET room-url uri params)
-  (receive (host path secure) (host&path uri)
+  (match-let1 (scheme host+port path) (uri-ref uri '(scheme host+port path))
     (receive (status hdrs body)
-        (http-get host #`",path,(make-qstr params)" :secure secure)
+        (http-get host+port `(,path ,@params) :secure (equal? scheme "https"))
       (unless (equal? status "200")
         (cerrf room-url "GET from ~a failed with ~a" uri status))
       (safe-parse room-url body))))
 
 (define (POST room-url uri params)
-  (receive (host path secure) (host&path uri)
-    (receive (body boundary) (make-mime params)
-      (receive (status hdrs body)
-          (http-post host path body
-                     :secure secure
-                     :mime-version "1.0"
-                     :content-type #`"multipart/form-data; boundary=,boundary")
-        (unless (equal? status "200")
-          (cerrf room-url "POST to ~a failed with ~a" uri status))
-        (safe-parse room-url body)))))
-
-(define (host&path uri)
-  (receive (scheme specific) (uri-scheme&specific uri)
-    (receive (host path q f) (uri-decompose-hierarchical specific)
-      (values host path (equal? scheme "https")))))
-
-(define (make-qstr alist)
-  (define (do-item k&v)
-    `(,(uri-encode-string (x->string (car k&v))) "="
-      ,(uri-encode-string (x->string (cdr k&v)))))
-  (if (null? alist)
-    ""
-    (tree->string `("?" ,(intersperse "&" (map do-item alist))))))
-
-(define (make-mime alist)
-  (let1 boundary (format "boundary-~a"
-                         (number->string (* (random-integer (expt 2 64))
-                                            (sys-time) (sys-getpid))
-                                         36))
-    (values (tree->string
-             `(,(map (lambda (k&v)
-                       `("\r\n--",boundary"\r\n"
-                         "Content-disposition: form-data; name=\"",(car k&v)"\"\r\n\r\n"
-                         ,(x->string (cdr k&v))))
-                     alist)
-               "\r\n--",boundary"--\r\n"))
-            boundary)))
+  (match-let1 (scheme host+port path) (uri-ref uri '(scheme host+port path))
+    (receive (status hdrs body)
+        (http-post host+port path params :secure (equal? scheme "https"))
+      (unless (equal? status "200")
+        (cerrf room-url "POST to ~a failed with ~a" uri status))
+      (safe-parse room-url body))))
 
 (define (safe-parse room-url reply)
   (guard (e [(<read-error> e)
