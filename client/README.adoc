@@ -62,13 +62,13 @@ two arguments, the `<chaton-client>` object, and an object indicating
 the event.
 
 . If it is a message event, the second argument is an alist with the following items:
-  - `pos` - An integer position of the message
-  - `nc` - The number of active clients
-  - `ver` - The chaton room's version
-  - `cid` - The client ID (integer)
-  - `content` - This can be either one of the following:
-  -- `(nickname (timestamp-sec timestamp-nsec) text)` - A post
-  -- `()` - Indicating this message is mearly notify the current position.
+  * `pos` - An integer position of the message
+  * `nc` - The number of active clients
+  * `ver` - The chaton room's version
+  * `cid` - The client ID (integer)
+  * `content` - This can be either one of the following:
+    ** `(nickname (timestamp-sec timestamp-nsec) text)` - A post
+    ** `()` - Indicating this message is mearly notify the current position.
 . If it is an error event, the second argument is a `<chaton-error>` object.
 It is usually a communication problem such as the server disconnected.
 After returning from _observer_, the client tries to eestablishes the
