@@ -101,7 +101,8 @@
 ;;;
 
 (define (make-handler client observer)
-  (define handle-it (or observer (lambda (_ _) #f)))
+  (define handle-it (or observer (lambda (_ msg)
+                                   (and (pair? msg) msg))))
   (define (loop)
     (let1 r (guard (e [(eq? e 'disconnected)
                        ;; wait for a while and retry

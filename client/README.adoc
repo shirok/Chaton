@@ -1,0 +1,107 @@
+= Chaton client library
+
+== Prerequisites
+
+Gauche 0.9.13 or later.  If you want to connect to Chaton over https,
+however, you need 0.9.14_pre1 or later.
+
+== Synopsis
+
+[source,scheme]
+----
+(use chaton.client)
+
+;; Create connection
+(define conn (chaton-connect "http://room-uri/" "client name"
+                             (lambda (conn packet)  ;; callback
+                                ...)))
+
+;; Monitor queued messages
+(chaton-message-dequeue! conn)
+
+;; Obtain permalink of a post identified by the timetamp
+(chaton-permalink conn timestamp)
+
+;; Post "text" as "nickname".
+(chaton-talk conn "nickname" "text")
+
+;; Cleanup
+(chaton-bye conn)
+----
+
+
+== API
+
+=== Create a connection
+
+`<chaton-client>`
+
+An object holding info about a connection to a room.
+
+Accessors for the client instance:
+
+- `(chaton-room-url client)` - Returns room url
+- `(chaton-room-name client)` - Returns room name
+- `(chaton-post-url client)` - URL to post messages
+- `(chaton-comet-url client)` - URL of the comet server
+- `(chaton-icon-url client)` - URL for the room icon
+- `(chaton-cid client)` - Client id (integer), unique number for each connected client
+- `(chaton-pos client)` - The last position (integer) of the message stream this client has retrieved
+- `(chaton-observer-error client)` - The last error conditon occurred in the communication.  `#f` if no error have occurred.
+
+To obtain a new connection, you can call `chaton-connect`:
+
+`(chaton-connect room-url client-name :optional observer retry-count)` ⇒ `<chaton-client>`
+
+This connects to a room specified with _room-url_.
+The _client-name_ is a string name used only for logging in the server side.
+
+There are two ways to monitor the chaton room activity: by a callback,
+and by a message queue.  The _observer_ argument is called back with
+two arguments, the `<chaton-client>` object, and an object indicating
+the event.
+
+. If it is a message event, the second argument is an alist with the following items:
+  - `pos` - An integer position of the message
+  - `nc` - The number of active clients
+  - `ver` - The chaton room's version
+  - `cid` - The client ID (integer)
+  - `content` - This can be either one of the following:
+     - `(nickname (timestamp-sec timestamp-nsec) text)` - A post
+     - `()` - Indicating this message is mearly notify the current position.
+. If it is an error event, the second argument is a `<chaton-error>` object.
+It is usually a communication problem such as the server disconnected.
+After returning from _observer_, the client tries to eestablishes the
+connection periodically.  If you want to abandon the monitoring you should
+throw an exception from _observer_.
+
+Note that _observer_ is called in a thread monitoring the room.
+
+If the _observer_ returns a list in the first case,
+it is queued in the client.  The second way to deal with the stream
+is to monitor the queue by the following call.
+
+`(chaton-message-dequeue! client :optional timeout timeout-val)`
+
+Returns one of the message in the queue.  This is thread-safe.
+If no message is in the queue, this procedure blocks until there's one
+available.  You can specify _timeout_ for waiting---it may be a `<time>`
+object to specify the absolute time point, or a real number specifying
+the number of seconds from the current time.  If _timeout_ reaches,
+_timeout-val_ is returned, which is defaulted to `#f`.
+
+The format of message is whatever _observer_ returns.  If _observer_
+is omitted, the alist format of mssage, as the second argument that would
+passed to _observer_, is used.  Note that `<chaton-error>` won't be
+queued.
+
+To post a text, use the following procedure.
+
+`(chaton-talk client nickname text)`
+
+Post a _text_ with the nickname _nickname_.  Note that we don't have
+a concept of "user" in Chaton.  You can use any nickname.
+
+Finally, the following procedure disconnects from the room.
+
+`(chaton-bye client)`
