@@ -66,9 +66,11 @@
               )
          (run-feeder bsky)
          (future-get clients) ;make sure connection is done by now
-         (sys-pause)
+         (sys-pause)          ;wait for signal
+         (log-foramt "Cleaning up...")
          (cleanup (future-get clients)))]
-      [_ (usage)])))
+      [_ (usage)]
+      0)))
 
 (define (usage)
   (exit 0 "Usage: chaton-bsky [-l logfile] config-file"))
