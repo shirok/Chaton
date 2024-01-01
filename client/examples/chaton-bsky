@@ -69,8 +69,8 @@
          (sys-pause)          ;wait for signal
          (log-foramt "Cleaning up...")
          (cleanup (future-get clients)))]
-      [_ (usage)]
-      0)))
+      [_ (usage)])
+    0))
 
 (define (usage)
   (exit 0 "Usage: chaton-bsky [-l logfile] config-file"))
