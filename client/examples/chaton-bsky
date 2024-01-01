@@ -67,7 +67,7 @@
          (run-feeder bsky)
          (future-get clients) ;make sure connection is done by now
          (sys-pause)
-         (cleanup clients))]
+         (cleanup (future-get clients)))]
       [_ (usage)])))
 
 (define (usage)
