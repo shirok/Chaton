@@ -1,0 +1,110 @@
+#!/usr/bin/env gosh
+;;;
+;;;  Chaton-Bluesky bridge
+;;;
+
+;; This works as a daemon process to monitor multiple Chaton rooms
+;; and forwards posts to a designated bluesky account.
+;; It's one direction; we don't support to forward Bluesky to Chaton.
+;;
+;; You need Gauche-app-bsky package.
+;; https://github.com/shirok/Gauche-app-bsky
+;;
+;; The following parameters need to be provided via config file.
+;;
+;;  chaton-rooms         : list of chaton's room urls to monitor
+;;  bsky-handle          ; Bluesky handle (string)
+;;  bsky-app-password    ; Bluesky app password (string)
+;;
+;; Example:
+;;
+;;   (
+;;    (chaton-rooms   "https://practical-scheme.net/chaton/gauche"
+;;                    "https://practical-scheme.net/chaton/chaton")
+;;    (bsky-handle    . "XXXXX")
+;;    (bsky-app-password . "XXXX-XXXX-XXXX-XXXX")
+;;   )
+
+(use gauche.parseopt)
+(use gauche.threads)
+(use gauche.logger)
+(use control.pmap)
+(use control.future)
+(use data.queue)
+(use chaton.client)
+(use app.bsky)
+(use util.match)
+
+(define *msgq* (make-mtqueue))
+
+(define (main args)
+  (let-args (cdr args) ([logfile "l=s"] [else _ (usage)] . restargs)
+    (cond [(equal? logfile "-") (common-log-open #t)]
+          [(string? logfile) (common-log-open logfile)])
+    (log-format "starting ~a" (car args))
+    (match restargs
+      [(file)
+       (let* ([config (guard (e [else (exit 1 "Couldn't read config file: ~s" e)])
+                        (with-input-from-file file read))]
+              [clients (future
+                        (pmap
+                         (^[room-url]
+                           (guard (e [else (log-format "Couldn't connect ~a" room-url)
+                                           #f])
+                             (log-format "Chaton connecting to ~a" room-url)
+                             (rlet1 clnt
+                                 (chaton-connect room-url "chaton-bsky" observe 5)
+                               (log-format "Chaton ~a connected"
+                                           (chaton-room-name clnt)))))
+                         (assq-ref config 'chaton-rooms '())))]
+              [bsky (guard (e [else (exit 1 "Bsky connect error: ~s" e)])
+                      (begin0
+                          (make-bsky-session (assq-ref config 'bsky-handle)
+                                             (assq-ref config 'bsky-app-password))
+                        (log-format "Bluesky connected as ~a"
+                                    (assq-ref config 'bsky-handle))))]
+              )
+         (run-feeder bsky)
+         (future-get clients) ;make sure connection is done by now
+         (sys-pause)
+         (cleanup clients))]
+      [_ (usage)])))
+
+(define (usage)
+  (exit 0 "Usage: chaton-bsky [-l logfile] config-file"))
+
+(define (common-log-open dst) (log-open dst) (chaton-log-open dst))
+
+(define (cleanup clients)
+  (dolist [c clients]
+    (when (is-a? c <chaton-client>) (chaton-bye c))))
+
+(define (observe chaton msg)
+  (log-format "Chaton observe [~a]: ~s" (chaton-room-name chaton) msg)
+  (dolist [msg (if (pair? msg)
+                 (assq-ref msg 'content '())
+                 '())]
+    (match msg
+      [(nickname timestamp text)
+       (enqueue/wait! *msgq* (list (chaton-room-name chaton)
+                                   (chaton-permalink chaton timestamp)
+                                   nickname
+                                   text))]
+      [_ #f]))
+  #f)
+
+(define (run-feeder bsky)
+  ($ thread-start! $ make-thread
+     (^[] (let loop ()
+            (guard (e [else (log-format "Bsky error: ~a" (~ e'message))])
+              (match-let1 (room link nick text) (dequeue/wait! *msgq*)
+                ($ bsky-post-segmented-text bsky
+                   $ compose-bsky-message room link nick text))
+              (loop))))))
+
+(define (compose-bsky-message room link nick text)
+  (let* ([prefix (format "[~a] ~a: " room nick)]
+         [content (if (>= (+ (string-length prefix) (string-length text)) 299)
+                    (format "~,,,,v:a" (- 295 (string-length prefix)) text)
+                    text)])
+    `("[" (,room :link ,link) "] " ,nick ": " ,content)))
