@@ -64,11 +64,13 @@
                         (log-format "Bluesky connected as ~a"
                                     (assq-ref config 'bsky-handle))))]
               )
+         (set-signal-handler! (sys-sigset SIGINT SIGHUP SIGTERM)
+                              (^_
+                               (log-format "Cleaning up...")
+                               (cleanup (future-get clients))))
          (run-feeder bsky)
          (future-get clients) ;make sure connection is done by now
-         (sys-pause)          ;wait for signal
-         (log-foramt "Cleaning up...")
-         (cleanup (future-get clients)))]
+         (while #t (sys-pause)))]
       [_ (usage)])
     0))
 
