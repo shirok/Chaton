@@ -87,7 +87,7 @@
   (log-format "Chaton observe [~a]: ~s" (chaton-room-name chaton) msg)
   (dolist [msg (if (and (pair? msg)
                         (integer? (assq-ref msg 'pos))
-                        (>= (assq-ref msg 'pos) (chaton-pos client)))
+                        (>= (assq-ref msg 'pos) (chaton-pos chaton)))
                  (assq-ref msg 'content '())
                  '())]
     (match msg
