@@ -81,7 +81,9 @@
 
 (define (cleanup clients)
   (dolist [c clients]
-    (when (is-a? c <chaton-client>) (chaton-bye c))))
+    (when (is-a? c <chaton-client>) (chaton-bye c)))
+  (log-format "Exit by signal..")
+  (exit 0))
 
 (define (observe chaton msg)
   (log-format "Chaton observe [~a]: ~s" (chaton-room-name chaton) msg)
