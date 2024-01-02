@@ -20,7 +20,7 @@
   (use text.tree)
   (use data.queue)
   (use util.match)
-  (export chaton-connect
+  (export <chaton-client> chaton-connect
           chaton-room-url chaton-room-name chaton-post-url chaton-comet-url
           chaton-icon-url chaton-cid chaton-pos chaton-observer-error
           chaton-permalink
