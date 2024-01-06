@@ -18,13 +18,11 @@
   (use rfc.uri)
   (use file.util)
   (use text.tree)
-  (use data.queue)
   (use util.match)
   (export <chaton-client> chaton-connect
           chaton-room-url chaton-room-name chaton-post-url chaton-comet-url
           chaton-icon-url chaton-cid chaton-pos chaton-observer-error
           chaton-permalink
-          chaton-message-dequeue!
 
           chaton-talk chaton-bye
 
@@ -47,7 +45,6 @@
    (pos       :init-keyword :pos       :getter chaton-pos)
    (observer-thread :init-form #f)
    (observer-error  :init-form #f      :getter chaton-observer-error)
-   (message-queue   :init-form (make-mtqueue))
    ))
 
 (define *chaton-log-drain* #f)
@@ -84,9 +81,6 @@
 (define (chaton-bye client)
   (cond [(~ client'observer-thread) => thread-terminate!]))
 
-(define (chaton-message-dequeue! client :optional (timeout #f) (timeout-val #f))
-  (dequeue/wait! (~ client'message-queue) timeout timeout-val))
-
 ;; utility method to return a permalink from the client and
 ;; timestamp (<seconds> <microseconds>)
 (define (chaton-permalink client timestamp)
@@ -101,31 +95,28 @@
 ;;;
 
 (define (make-handler client observer)
-  (define handle-it (or observer (lambda (_ msg)
-                                   (and (pair? msg) msg))))
+  (define handle-it (or observer values))
   (define (loop)
-    (let1 r (guard (e [(eq? e 'disconnected)
-                       ;; wait for a while and retry
-                       (log-format *chaton-log-drain*
-                                   "comet server disconnected.  retrying...")
-                       (sys-sleep (+ 5 (random-integer 10)))
-                       #f]
-                      [else
-                       (set! (~ client'observer-error) e)
-                       (log-format *chaton-log-drain*
-                                   "observer thread error: ~a" (~ e'message))
-                       (when (<chaton-error> e) (handle-it client e))
-                       (sys-sleep 3)    ;avoid busy loop
-                       #f])
-              (let1 packet (%fetch client)
-                (let ([new-pos (assq-ref packet 'pos)]
-                      [new-cid (assq-ref packet 'cid)])
-                  (unwind-protect (handle-it client packet)
-                    (begin
-                      (when new-pos (set! (~ client'pos) new-pos))
-                      (when new-cid (set! (~ client'cid) new-cid)))))))
-      (when (and (not (null? r)) (list? r))
-        (enqueue! (~ client'message-queue) r)))
+    (guard (e [(eq? e 'disconnected)
+               ;; wait for a while and retry
+               (log-format *chaton-log-drain*
+                           "comet server disconnected.  retrying...")
+               (sys-sleep (+ 5 (random-integer 10)))
+               #f]
+              [else
+               (set! (~ client'observer-error) e)
+               (log-format *chaton-log-drain*
+                           "observer thread error: ~a" (~ e'message))
+               (when (<chaton-error> e) (handle-it client e))
+               (sys-sleep 3)    ;avoid busy loop
+               #f])
+      (let1 packet (%fetch client)
+        (let ([new-pos (assq-ref packet 'pos)]
+              [new-cid (assq-ref packet 'cid)])
+          (unwind-protect (handle-it client packet)
+            (begin
+              (when new-pos (set! (~ client'pos) new-pos))
+              (when new-cid (set! (~ client'cid) new-cid)))))))
     (loop))
   (thread-start! (make-thread loop)))
 

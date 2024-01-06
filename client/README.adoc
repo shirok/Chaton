@@ -16,9 +16,6 @@ however, you need 0.9.14_pre1 or later.
                              (lambda (conn packet)  ;; callback
                                 ...)))
 
-;; Monitor queued messages
-(chaton-message-dequeue! conn)
-
 ;; Obtain permalink of a post identified by the timetamp
 (chaton-permalink conn timestamp)
 
@@ -56,10 +53,8 @@ To obtain a new connection, you can call `chaton-connect`:
 This connects to a room specified with _room-url_.
 The _client-name_ is a string name used only for logging in the server side.
 
-There are two ways to monitor the chaton room activity: by a callback,
-and by a message queue.  The _observer_ argument is called back with
-two arguments, the `<chaton-client>` object, and an object indicating
-the event.
+The _observer_ argument is called back with two arguments,
+the `<chaton-client>` object, and an object indicating the event.
 
 . If it is a message event, the second argument is an alist with the following items:
   * `pos` - An integer position of the message
@@ -75,25 +70,9 @@ After returning from _observer_, the client tries to eestablishes the
 connection periodically.  If you want to abandon the monitoring you should
 throw an exception from _observer_.
 
+The return value of _observer_ is discarded.
+
 Note that _observer_ is called in a thread monitoring the room.
-
-If the _observer_ returns a list in the first case,
-it is queued in the client.  The second way to deal with the stream
-is to monitor the queue by the following call.
-
-`(chaton-message-dequeue! client :optional timeout timeout-val)`
-
-Returns one of the message in the queue.  This is thread-safe.
-If no message is in the queue, this procedure blocks until there's one
-available.  You can specify _timeout_ for waiting---it may be a `<time>`
-object to specify the absolute time point, or a real number specifying
-the number of seconds from the current time.  If _timeout_ reaches,
-_timeout-val_ is returned, which is defaulted to `#f`.
-
-The format of message is whatever _observer_ returns.  If _observer_
-is omitted, the alist format of mssage, as the second argument that would
-passed to _observer_, is used.  Note that `<chaton-error>` won't be
-queued.
 
 To post a text, use the following procedure.
 
