@@ -7,10 +7,9 @@
 (use chaton.client)
 (use gauche.threads)
 (use gauche.parseopt)
-(use gauche.experimental.ref)
+(use gauche.logger)
 (use util.match)
 (use util.queue)
-(use util.list)
 
 (define *connections* '())
 (define *mutex* (make-mutex))
@@ -25,6 +24,7 @@
     (set-signal-handler! (sys-sigset SIGINT SIGHUP SIGTERM)
                          (lambda (_) (cleanup 0)))
     (chaton-log-open #t)
+    (log-open #t)
     (guard (e [(<chaton-error> e) (print (~ e'message)) (cleanup 1)])
       (dolist [room-url args]
         (push! *connections* (chaton-connect room-url "chaton-watcher" observe))))
@@ -40,7 +40,7 @@
     (while #t (sys-pause))))
 
 (define (usage)
-  (print "Usage: chaton-watcher [-s] <room-url> ...")
+  (print "Usage: chaton-watcher [-s][-l logfile] <room-url> ...")
   (print "Options:")
   (print "  -s, --silent    Do not ring bell on new posts.")
   (exit 0))
@@ -51,6 +51,7 @@
   (exit code))
 
 (define (observe client message)
+  (log-format "observer[~a]: ~s" (chaton-room-name client) message)
   (guard (e [else (print e) #f])
     (cond
      [(<chaton-error> message)
