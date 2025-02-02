@@ -61,12 +61,15 @@
 ;;
 ;;  OBSERVER :: (<chaton-client> <packet>) => <? <datum>>
 (define (chaton-connect room-url app-name :optional (observer #f) (retry 0))
-  (receive (name post comet icon cid pos)
+  (match-let1 (name post comet icon cid pos)
       (let loop ([n retry] [last-error #f])
-        (if (>= n 0)
-          (guard (e [else (loop (- n 1) e)])
-            (%connect-main room-url app-name))
-          (error "Chaton-connect failed (after ~a retry): ~s" retry last-error)))
+        (if (< n 0)
+          (errorf "Chaton-connect failed (after ~a retry): ~s" retry last-error)
+          (let1 r (guard (e [(error? e) e])
+                    (values->list (%connect-main room-url app-name)))
+            (if (error? r)
+              (loop (- n 1) r)
+              r))))
     (rlet1 client (make <chaton-client>
                     :room-url room-url :observer observer
                     :post-url post :comet-url comet :icon-url icon

@@ -27,7 +27,8 @@
     (log-open #t)
     (guard (e [(<chaton-error> e) (print (~ e'message)) (cleanup 1)])
       (dolist [room-url args]
-        (push! *connections* (chaton-connect room-url "chaton-watcher" observe))))
+        (push! *connections* (chaton-connect room-url "chaton-watcher"
+                                             observe 3))))
     ;; We run a separate thread to print out the messages and let
     ;; the primordial thread to sleep.  It is to allow the primordial
     ;; thread to catch the signal.   If we make the primordial thread to
