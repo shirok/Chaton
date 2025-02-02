@@ -49,8 +49,11 @@
               [clients (future
                         (pmap
                          (^[room-url]
-                           (guard (e [else (log-format "Couldn't connect ~a" room-url)
-                                           #f])
+                           (guard (e [else
+                                      (log-format "Couldn't connect ~a: ~a"
+                                                  room-url
+                                                  (~ e'message))
+                                      #f])
                              (log-format "Chaton connecting to ~a" room-url)
                              (rlet1 clnt
                                  (chaton-connect room-url "chaton-bsky" observe 5)
