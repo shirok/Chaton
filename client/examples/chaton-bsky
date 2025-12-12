@@ -73,7 +73,15 @@
                                (cleanup (future-get clients))))
          (run-feeder bsky)
          (future-get clients) ;make sure connection is done by now
-         (while #t (sys-pause)))]
+         (let loop ((n 0))
+           (sys-pause)
+           (inc! n)
+           ;; Temporary, to monitor behavior of signal handling
+           (when (zero? (modulo n 1000))
+             (log-format "sys-pause loop heartbeat")
+             (sys-nanosleep 1_000_000)
+             (set! n 0))
+           (loop n)))]
       [_ (usage)])
     0))
 
