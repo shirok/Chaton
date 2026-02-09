@@ -250,7 +250,7 @@
             [(and-let* ([ccnt2 (get-num-clients)] [ (not (= ccnt ccnt2)) ])
                (mutex-unlock! *mutex*)
                (send-ping csock ncid pos sexp? hmv) #t)] ; soft timeout, ccnt change
-            [else (loop)])]
+            [else (sys-nanosleep #e1e8) (loop)])]
           [(< pos *size*)
            (let ([s *size*] [content (content-retrieve pos pref?)])
              (mutex-unlock! *mutex*)
