@@ -241,7 +241,9 @@
             [(not (eqv? ncid cid)) ; this is reconnection after server restart.
              (mutex-unlock! *mutex*)
              (send-ping csock ncid pos sexp? hmv)]
-            [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15))) (loop)]
+            [(mutex-unlock! *mutex* *cv* (+ 15 (random-integer 15)))
+             (sys-nanosleep #e1e8)
+             (loop)]
             [(not (valid-cid? ncid)) ; client already reconnected. abandon self.
              (raise 'dup)]
             [(< time-started (- (sys-time) (+ 240 (random-integer 120))))
